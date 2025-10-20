@@ -26,11 +26,3 @@ class Wishlist extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 }
-
-
-
-// domi
-Lunch kul
-450+100+200
-@asad
-
