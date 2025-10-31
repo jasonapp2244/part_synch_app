@@ -72,7 +72,7 @@ class WishlistController extends Controller
     //         return response()->json([
     //             'message' => 'Failed to send notification emails. Wishlist not saved.',
     //             'error' => $e->getMessage()
-    //         ], 500);
+    //  git        ], 500);
     //     }
     // }
 
