@@ -27,3 +27,8 @@ yarn-error.log
 *postman*.json
 *Postman*.json
 *.postman_collection.json
+# Local uploads and scratch files (test data, not code)
+/storage/app/public/attachments/
+/storage/app/public/product_images/*
+/storage/app/public/profile_images/*
+/part-synch-status.html
