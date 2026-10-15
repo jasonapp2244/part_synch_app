@@ -23,6 +23,9 @@ yarn-error.log
 /.vscode
 *.zip
 *.sql
+# ...except the schema snapshot (structure only, no data) that builds a fresh
+# database, including the test one, without replaying the migrations.
+!/database/schema/*.sql
 *.sql.gz
 *postman*.json
 *Postman*.json

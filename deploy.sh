@@ -42,6 +42,11 @@ composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 say "Running migrations"
 php artisan migrate --force
 
+# Fills only Legal & Support documents that are still empty; never
+# overwrites text edited in the admin panel, so it is safe on every deploy.
+say "Seeding empty legal pages"
+php artisan db:seed --class=LegalContentSeeder --force
+
 say "Linking storage"
 php artisan storage:link 2>/dev/null || true
 

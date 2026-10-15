@@ -2,18 +2,16 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * The site has no home page (`/` is unrouted), so the smoke test is the
+     * admin sign-in page every visit to the panel starts from.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_admin_login_page_loads(): void
     {
-        $response = $this->get('/');
-
-        $response->assertStatus(200);
+        $this->get('/login')->assertOk();
     }
 }

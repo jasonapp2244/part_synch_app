@@ -180,33 +180,10 @@
                         </small>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Support Email</label>
-                                <input type="email" class="form-control" name="support_email" value="{{ $currentSettings['support_email'] }}">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Support Phone</label>
-                                <input type="text" class="form-control" name="support_phone" value="{{ $currentSettings['support_phone'] }}">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Privacy Policy URL</label>
-                                <input type="url" class="form-control" name="privacy_policy_url" value="{{ $currentSettings['privacy_policy_url'] }}" placeholder="https://...">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Terms of Service URL</label>
-                                <input type="url" class="form-control" name="terms_url" value="{{ $currentSettings['terms_url'] }}" placeholder="https://...">
-                            </div>
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label">Privacy Policy Text</label>
-                                <textarea class="form-control" name="privacy_policy_content" rows="6">{{ $currentSettings['privacy_policy_content'] }}</textarea>
-                                <small class="text-secondary">Served by /api/legal/privacy-policy so the app can render it natively.</small>
-                            </div>
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label">Terms of Service Text</label>
-                                <textarea class="form-control" name="terms_content" rows="6">{{ $currentSettings['terms_content'] }}</textarea>
-                            </div>
-                        </div>
+                        <p class="mb-2">The privacy policy, terms of use, support page, account-deletion page and support contact details now have their own screen with an easy editor.</p>
+                        <a href="{{ route('admin.legal') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bx bx-shield"></i> Open Legal &amp; Support
+                        </a>
                     </div>
                 </div>
 

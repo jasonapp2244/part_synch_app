@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Support\LegalContent;
 use Illuminate\Http\Request;
 
 /**
@@ -17,7 +18,8 @@ use Illuminate\Http\Request;
  *    current API can tell the user to update instead of failing strangely.
  *    This is the standard alternative to letting old clients break.
  *
- * All values are edited from the admin panel's Settings screen.
+ * Version and store values are edited on the admin panel's Settings screen;
+ * legal documents and support contact details on its Legal & Support screen.
  */
 class AppConfigController extends Controller
 {
@@ -53,10 +55,15 @@ class AppConfigController extends Controller
                     : Setting::get('play_store_url', ''),
                 'maintenance_mode' => (bool) Setting::get('maintenance_mode', 0),
                 'maintenance_message' => Setting::get('maintenance_message', ''),
-                'support_email' => Setting::get('support_email', Setting::get('site_email', '')),
-                'support_phone' => Setting::get('support_phone', Setting::get('site_phone', '')),
-                'privacy_policy_url' => Setting::get('privacy_policy_url', url('/legal/privacy-policy')),
-                'terms_url' => Setting::get('terms_url', url('/legal/terms')),
+                // `?:` not a get() default: once a field has been saved empty
+                // the row exists, and get() would hand back '' instead of the
+                // fallback.
+                'support_email' => Setting::get('support_email') ?: (string) Setting::get('site_email', ''),
+                'support_phone' => Setting::get('support_phone') ?: (string) Setting::get('site_phone', ''),
+                'privacy_policy_url' => Setting::get('privacy_policy_url') ?: route('legal.privacy'),
+                'terms_url' => Setting::get('terms_url') ?: route('legal.terms'),
+                'support_url' => route('support.page'),
+                'account_deletion_url' => route('account.delete.info'),
                 'currency' => Setting::get('currency', 'USD'),
                 'currency_symbol' => Setting::get('currency_symbol', '$'),
             ],
@@ -79,7 +86,7 @@ class AppConfigController extends Controller
 
     private function legalDocument(string $key, string $title)
     {
-        $content = Setting::get($key . '_content');
+        $content = LegalContent::sanitize(Setting::get($key . '_content'));
 
         if (blank($content)) {
             return response()->json([
@@ -94,7 +101,7 @@ class AppConfigController extends Controller
             'data' => [
                 'title' => $title,
                 'content' => $content,
-                'url' => Setting::get($key . '_url', ''),
+                'url' => Setting::get($key . '_url') ?: route(LegalContent::DOCUMENTS[$key]['route']),
                 'updated_at' => optional(Setting::where('key', $key . '_content')->first())->updated_at,
             ],
         ]);

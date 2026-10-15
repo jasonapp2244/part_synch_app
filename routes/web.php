@@ -11,17 +11,30 @@ use App\Http\Controllers\Admin\{
     ProductController,
     EarningController,
     SettingsController,
+    LegalPageController,
     BoostPackageController,
     ReportController,
     ReviewController
 };
 
+use App\Http\Controllers\PublicPageController;
 use Illuminate\Support\Facades\Route;
 
 
 Route::get('/test', function () {
     return "Route is working!";
 });
+
+/*
+|--------------------------------------------------------------------------
+| Public pages (no sign-in): the URLs the App Store and Play Store listings
+| link to. Their text is edited in the admin panel under Legal & Support.
+|--------------------------------------------------------------------------
+*/
+Route::get('/legal/privacy-policy', [PublicPageController::class, 'privacyPolicy'])->name('legal.privacy');
+Route::get('/legal/terms', [PublicPageController::class, 'terms'])->name('legal.terms');
+Route::get('/support', [PublicPageController::class, 'support'])->name('support.page');
+Route::get('/account/delete', [PublicPageController::class, 'accountDeletion'])->name('account.delete.info');
 
 /*
 |--------------------------------------------------------------------------
@@ -106,5 +119,9 @@ Route::middleware('admin')->group(function () {
     // Settings
     Route::get('/settings', [SettingsController::class, 'index'])->name('admin.settings');
     Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
+
+    // Legal & Support: privacy policy, terms, support and account-deletion pages
+    Route::get('/legal-support', [LegalPageController::class, 'index'])->name('admin.legal');
+    Route::post('/legal-support', [LegalPageController::class, 'update'])->name('admin.legal.update');
 
 });

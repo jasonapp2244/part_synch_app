@@ -44,16 +44,8 @@ class SettingsController extends Controller
                 'maintenance_mode' => '0',
                 'maintenance_message' => '',
             ],
-            // Both stores require a reachable privacy policy, and Apple wants
-            // terms linked wherever an account can be created.
-            'legal' => [
-                'support_email' => '',
-                'support_phone' => '',
-                'privacy_policy_url' => '',
-                'privacy_policy_content' => '',
-                'terms_url' => '',
-                'terms_content' => '',
-            ],
+            // Legal documents and support contact details are edited on the
+            // Legal & Support screen (LegalPageController), not here.
         ];
 
         // Merge defaults with DB values
@@ -71,13 +63,10 @@ class SettingsController extends Controller
     {
         $request->validate([
             'site_email' => 'nullable|email|max:255',
-            'support_email' => 'nullable|email|max:255',
             'vendor_commission_rate' => 'nullable|numeric|min:0|max:100',
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             'min_order_amount' => 'nullable|numeric|min:0',
             'shipping_default' => 'nullable|numeric|min:0',
-            'privacy_policy_url' => 'nullable|url|max:500',
-            'terms_url' => 'nullable|url|max:500',
             'play_store_url' => 'nullable|url|max:500',
             'app_store_url' => 'nullable|url|max:500',
             'min_app_version_android' => ['nullable', 'regex:/^\d+(\.\d+){0,3}$/'],
@@ -105,12 +94,6 @@ class SettingsController extends Controller
             'app_store_url' => 'mobile',
             'force_update_message' => 'mobile',
             'maintenance_message' => 'mobile',
-            'support_email' => 'legal',
-            'support_phone' => 'legal',
-            'privacy_policy_url' => 'legal',
-            'privacy_policy_content' => 'legal',
-            'terms_url' => 'legal',
-            'terms_content' => 'legal',
         ];
 
         foreach ($settingKeys as $key => $group) {

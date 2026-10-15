@@ -115,6 +115,13 @@
         </li>
 
         <li>
+            <a href="{{ route('admin.legal') }}" class="{{ request()->routeIs('admin.legal') ? 'mm-active' : '' }}">
+                <div class="parent-icon"><i class='bx bx-shield'></i></div>
+                <div class="menu-title">Legal &amp; Support</div>
+            </a>
+        </li>
+
+        <li>
             <a href="{{ route('admin.settings') }}" class="{{ request()->routeIs('admin.settings') ? 'mm-active' : '' }}">
                 <div class="parent-icon"><i class='bx bx-cog'></i></div>
                 <div class="menu-title">Settings</div>
