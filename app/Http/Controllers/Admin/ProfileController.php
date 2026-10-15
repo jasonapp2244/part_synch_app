@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -36,6 +37,54 @@ class ProfileController extends Controller
         $admin->fill($data)->save();
 
         return redirect()->route('admin.profile')->with('success', 'Profile updated.');
+    }
+
+    /**
+     * Upload a new profile photo, replacing (and deleting) the old one.
+     */
+    public function updatePhoto(Request $request)
+    {
+        $request->validate([
+            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048', 'dimensions:min_width=64,min_height=64,max_width=4000,max_height=4000'],
+        ], [
+            'photo.max'        => 'The photo must be 2 MB or smaller.',
+            'photo.dimensions' => 'The photo must be between 64 and 4000 pixels on each side.',
+        ]);
+
+        $admin = Auth::user();
+        $file = $request->file('photo');
+        $name = 'admin_' . $admin->id . '_' . time() . '.' . $file->extension();
+
+        if (! $file->storeAs('profile_images', $name, 'public')) {
+            return redirect()->route('admin.profile')
+                ->withErrors(['photo' => 'The photo could not be saved. Please try again.']);
+        }
+
+        $old = $admin->profile_image;
+        $admin->profile_image = $name;
+        $admin->save();
+
+        if ($old && $old !== $name) {
+            Storage::disk('public')->delete('profile_images/' . basename($old));
+        }
+
+        return redirect()->route('admin.profile')->with('success', 'Profile photo updated.');
+    }
+
+    /**
+     * Remove the profile photo and go back to the default avatar.
+     */
+    public function destroyPhoto()
+    {
+        $admin = Auth::user();
+
+        if ($admin->profile_image) {
+            Storage::disk('public')->delete('profile_images/' . basename($admin->profile_image));
+            $admin->profile_image = null;
+            $admin->save();
+        }
+
+        return redirect()->route('admin.profile')->with('success', 'Profile photo removed.');
     }
 
     /**

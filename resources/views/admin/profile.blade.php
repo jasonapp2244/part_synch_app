@@ -35,7 +35,33 @@
                 <div class="col-lg-4 mb-3">
                     <div class="card h-100">
                         <div class="card-body text-center py-4">
-                            <img src="{{ asset('admin/images/avatars/avatar-2.png') }}" class="rounded-circle mb-3" width="96" height="96" alt="">
+                            <img src="{{ $admin->avatarUrl() }}" id="avatar-preview" class="rounded-circle mb-3 border"
+                                width="120" height="120" style="object-fit: cover;" alt="Profile photo">
+
+                            <form method="POST" action="{{ route('admin.profile.photo') }}" enctype="multipart/form-data" class="mb-2">
+                                @csrf
+                                <label for="photo" class="btn btn-sm btn-outline-primary mb-0">
+                                    <i class="bx bx-camera me-1"></i>{{ $admin->profile_image ? 'Change photo' : 'Upload photo' }}
+                                </label>
+                                <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp" class="d-none">
+                                <div id="photo-actions" class="mt-2 d-none">
+                                    <div class="small text-muted mb-2" id="photo-name"></div>
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="bx bx-upload me-1"></i>Save photo</button>
+                                    <button type="button" class="btn btn-sm btn-light" id="photo-cancel">Cancel</button>
+                                </div>
+                                @error('photo')<div class="text-danger small mt-2">{{ $message }}</div>@enderror
+                                <div class="form-text">JPG, PNG or WebP, up to 2 MB.</div>
+                            </form>
+
+                            @if($admin->profile_image)
+                                <form method="POST" action="{{ route('admin.profile.photo.destroy') }}" class="mb-3"
+                                    onsubmit="return confirm('Remove your profile photo?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-link text-danger p-0">Remove photo</button>
+                                </form>
+                            @endif
+
                             <h5 class="mb-1">{{ $fullName }}</h5>
                             <p class="text-muted mb-1">{{ $admin->email }}</p>
                             @if($admin->phone_number)
@@ -137,4 +163,35 @@
             </div>
         </div>
     </div>
+@endsection
+
+@section('scripts')
+<script>
+    (function () {
+        var input = document.getElementById('photo');
+        var preview = document.getElementById('avatar-preview');
+        var actions = document.getElementById('photo-actions');
+        var original = preview.src;
+        var objectUrl = null;
+
+        function reset() {
+            if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+            input.value = '';
+            preview.src = original;
+            actions.classList.add('d-none');
+        }
+
+        input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            if (!file) { reset(); return; }
+            if (objectUrl) { URL.revokeObjectURL(objectUrl); }
+            objectUrl = URL.createObjectURL(file);
+            preview.src = objectUrl;
+            document.getElementById('photo-name').textContent = file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+            actions.classList.remove('d-none');
+        });
+
+        document.getElementById('photo-cancel').addEventListener('click', reset);
+    })();
+</script>
 @endsection

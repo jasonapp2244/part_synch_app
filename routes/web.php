@@ -129,5 +129,7 @@ Route::middleware('admin')->group(function () {
     Route::get('/profile', [ProfileController::class, 'show'])->name('admin.profile');
     Route::post('/profile', [ProfileController::class, 'update'])->name('admin.profile.update');
     Route::post('/profile/password', [ProfileController::class, 'updatePassword'])->name('admin.profile.password');
+    Route::post('/profile/photo', [ProfileController::class, 'updatePhoto'])->name('admin.profile.photo');
+    Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])->name('admin.profile.photo.destroy');
 
 });

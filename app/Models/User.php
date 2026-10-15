@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -97,6 +98,20 @@ class User extends Authenticatable
     public function getNameAttribute()
     {
         return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    /**
+     * URL of the profile photo for the admin panel, or the default avatar when
+     * there is none or the file has gone missing. profile_image holds a file
+     * name under storage/app/public/profile_images, as the app's own uploads do.
+     */
+    public function avatarUrl(): string
+    {
+        $path = $this->profile_image ? 'profile_images/' . $this->profile_image : null;
+
+        return $path && Storage::disk('public')->exists($path)
+            ? asset('storage/' . $path)
+            : asset('admin/images/avatars/avatar-2.png');
     }
 
     protected function product()

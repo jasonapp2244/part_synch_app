@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -108,6 +110,85 @@ class AdminProfileTest extends TestCase
         $this->post('/login', ['email' => $admin->email, 'password' => 'new-password-2'])
             ->assertRedirect(route('admin.dashboard'));
         $this->assertAuthenticatedAs($admin->fresh());
+    }
+
+    public function test_admin_uploads_replaces_and_removes_profile_photo(): void
+    {
+        Storage::fake('public');
+        $admin = $this->user(1);
+
+        $this->actingAs($admin)->post('/profile/photo', [
+            'photo' => UploadedFile::fake()->image('me.jpg', 300, 300),
+        ])->assertRedirect(route('admin.profile'))->assertSessionHas('success');
+
+        $first = $admin->fresh()->profile_image;
+        $this->assertNotNull($first);
+        Storage::disk('public')->assertExists('profile_images/' . $first);
+
+        // The header on every page and the profile card show the new photo.
+        $this->actingAs($admin->fresh())->get('/profile')->assertOk()
+            ->assertSee('storage/profile_images/' . $first, false);
+
+        // Replacing deletes the old file so uploads don't pile up.
+        $this->travel(2)->seconds();
+        $this->actingAs($admin->fresh())->post('/profile/photo', [
+            'photo' => UploadedFile::fake()->image('new.png', 200, 200),
+        ])->assertSessionHasNoErrors();
+
+        $second = $admin->fresh()->profile_image;
+        $this->assertNotSame($first, $second);
+        Storage::disk('public')->assertMissing('profile_images/' . $first);
+        Storage::disk('public')->assertExists('profile_images/' . $second);
+
+        $this->actingAs($admin->fresh())->delete('/profile/photo')
+            ->assertRedirect(route('admin.profile'))->assertSessionHas('success');
+
+        $this->assertNull($admin->fresh()->profile_image);
+        Storage::disk('public')->assertMissing('profile_images/' . $second);
+        $this->actingAs($admin->fresh())->get('/profile')
+            ->assertSee('admin/images/avatars/avatar-2.png', false);
+    }
+
+    public function test_photo_upload_rejects_non_images_oversized_and_tiny_files(): void
+    {
+        Storage::fake('public');
+        $admin = $this->user(1);
+
+        $this->actingAs($admin)->post('/profile/photo', [])->assertSessionHasErrors('photo');
+
+        $this->actingAs($admin)->post('/profile/photo', [
+            'photo' => UploadedFile::fake()->create('script.php', 10, 'application/x-php'),
+        ])->assertSessionHasErrors('photo');
+
+        $this->actingAs($admin)->post('/profile/photo', [
+            'photo' => UploadedFile::fake()->image('huge.jpg', 500, 500)->size(3000),
+        ])->assertSessionHasErrors('photo');
+
+        $this->actingAs($admin)->post('/profile/photo', [
+            'photo' => UploadedFile::fake()->image('tiny.png', 10, 10),
+        ])->assertSessionHasErrors('photo');
+
+        $this->assertNull($admin->fresh()->profile_image);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_photo_routes_require_an_admin(): void
+    {
+        Storage::fake('public');
+
+        $this->post('/profile/photo', ['photo' => UploadedFile::fake()->image('me.jpg', 100, 100)])
+            ->assertRedirect(route('admin.login'));
+        $this->delete('/profile/photo')->assertRedirect(route('admin.login'));
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_missing_photo_file_falls_back_to_default_avatar(): void
+    {
+        Storage::fake('public');
+        $admin = $this->user(1);
+        $admin->forceFill(['profile_image' => 'gone.jpg'])->save();
+
+        $this->assertStringEndsWith('admin/images/avatars/avatar-2.png', $admin->avatarUrl());
     }
 
     public function test_password_change_rejects_wrong_current_short_or_unconfirmed(): void
