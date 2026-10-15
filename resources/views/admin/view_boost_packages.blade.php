@@ -88,38 +88,50 @@
                 </div>
             </div>
 
-            <!-- Boost Positions (read-only info) -->
+            <!-- Boost Positions: capacity and pricing -->
             <h6 class="mb-0 text-uppercase">Boost Positions</h6>
             <hr />
             <div class="card">
                 <div class="card-body">
+                    <p class="text-muted small">
+                        <strong>Slots</strong> = how many boosted products the section shows at once. When a section is full,
+                        new approvals are scheduled for the next free date. <strong>Price ×</strong> multiplies the package price
+                        (e.g. 1.5 = 50% more for the Top section). The app shows the Top, Middle and Bottom sections only.
+                    </p>
                     <div class="table-responsive">
-                        <table class="table table-striped table-bordered">
+                        <table class="table table-striped table-bordered align-middle">
                             <thead>
                                 <tr>
-                                    <th>S.no</th>
-                                    <th>Position Name</th>
-                                    <th>Priority</th>
-                                    <th>Display Limit</th>
-                                    <th>Status</th>
+                                    <th>Position</th>
+                                    <th>Slots in use now</th>
+                                    <th style="width: 130px;">Slots</th>
+                                    <th style="width: 130px;">Price ×</th>
+                                    <th>Offered to vendors</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse($positions as $index => $position)
+                                @forelse($positions as $position)
                                 <tr>
-                                    <td>{{ $index + 1 }}</td>
                                     <td>{{ $position->name }}</td>
-                                    <td>{{ $position->priority }}</td>
-                                    <td>{{ $position->display_limit }}</td>
-                                    <td>
-                                        <span class="badge {{ $position->status ? 'bg-success' : 'bg-secondary' }}">
-                                            {{ $position->status ? 'Active' : 'Inactive' }}
-                                        </span>
+                                    <td>{{ $slotsInUse[$position->id] ?? 0 }} / {{ $position->display_limit }}</td>
+                                    <td colspan="4" class="p-0">
+                                        <form action="{{ route('boost.position.update', $position->id) }}" method="POST" class="d-flex align-items-center gap-2 p-2 flex-wrap">
+                                            @csrf
+                                            @method('PUT')
+                                            <input type="number" name="display_limit" value="{{ $position->display_limit }}" min="1" max="50" required class="form-control form-control-sm" style="width: 110px;" aria-label="Slots">
+                                            <input type="number" name="price_multiplier" value="{{ $position->price_multiplier }}" min="0.1" max="9.99" step="0.05" required class="form-control form-control-sm" style="width: 110px;" aria-label="Price multiplier">
+                                            <div class="form-check form-switch mb-0 mx-2">
+                                                <input class="form-check-input" type="checkbox" name="status" value="1" id="posStatus{{ $position->id }}" {{ $position->status ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="posStatus{{ $position->id }}">{{ $position->status ? 'Yes' : 'No' }}</label>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-outline-primary ms-auto"><i class="bx bx-save"></i> Save</button>
+                                        </form>
                                     </td>
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="5" class="text-center">No boost positions found.</td>
+                                    <td colspan="6" class="text-center">No boost positions found.</td>
                                 </tr>
                                 @endforelse
                             </tbody>

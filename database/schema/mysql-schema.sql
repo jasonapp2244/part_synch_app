@@ -386,7 +386,7 @@ CREATE TABLE `notifications` (
   CONSTRAINT `notifications_payment_id_foreign` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`id`) ON DELETE CASCADE,
   CONSTRAINT `notifications_refunds_id_foreign` FOREIGN KEY (`refunds_id`) REFERENCES `refunds` (`id`) ON DELETE CASCADE,
   CONSTRAINT `notifications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `notifications_vendor_id_foreign` FOREIGN KEY (`vendor_id`) REFERENCES `vendor_type` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `notifications_vendor_id_foreign` FOREIGN KEY (`vendor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `notifications_vendor_payment_id_foreign` FOREIGN KEY (`vendor_payment_id`) REFERENCES `vendor_payments` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -921,6 +921,7 @@ CREATE TABLE `vendor_boosts` (
   `vendor_id` bigint(20) unsigned NOT NULL,
   `package_id` bigint(20) unsigned NOT NULL,
   `boost_position_id` bigint(20) unsigned DEFAULT NULL,
+  `approval_status` enum('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
   `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
   `currency` varchar(10) NOT NULL DEFAULT 'usd',
   `start_date` datetime DEFAULT NULL,
@@ -928,14 +929,26 @@ CREATE TABLE `vendor_boosts` (
   `payment_status` enum('pending','success','failed','refunded') NOT NULL DEFAULT 'pending',
   `payment_method` varchar(255) DEFAULT NULL,
   `transaction_id` varchar(255) DEFAULT NULL,
+  `payment_reference` varchar(255) DEFAULT NULL,
+  `paid_at` timestamp NULL DEFAULT NULL,
+  `approved_by` bigint(20) unsigned DEFAULT NULL,
+  `approved_at` timestamp NULL DEFAULT NULL,
+  `live_notified_at` timestamp NULL DEFAULT NULL,
+  `ending_notified_at` timestamp NULL DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 0,
   `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `vendor_note` text DEFAULT NULL,
+  `admin_note` text DEFAULT NULL,
+  `rejection_reason` varchar(500) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `vendor_boosts_vendor_id_foreign` (`vendor_id`),
   KEY `vendor_boosts_package_id_foreign` (`package_id`),
   KEY `vendor_boosts_boost_position_id_foreign` (`boost_position_id`),
+  KEY `vendor_boosts_approved_by_foreign` (`approved_by`),
+  KEY `vendor_boosts_approval_status_boost_position_id_index` (`approval_status`,`boost_position_id`),
+  CONSTRAINT `vendor_boosts_approved_by_foreign` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `vendor_boosts_boost_position_id_foreign` FOREIGN KEY (`boost_position_id`) REFERENCES `boost_positions` (`id`) ON DELETE SET NULL,
   CONSTRAINT `vendor_boosts_package_id_foreign` FOREIGN KEY (`package_id`) REFERENCES `boost_packages` (`id`) ON DELETE CASCADE,
   CONSTRAINT `vendor_boosts_vendor_id_foreign` FOREIGN KEY (`vendor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
@@ -1103,3 +1116,5 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (78,'2026_08_26_100
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (79,'2026_08_26_100003_create_reports_table',34);
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (80,'2026_08_26_100004_create_device_tokens_table',34);
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (81,'2026_08_26_100005_fix_reviews_vendor_foreign_key',35);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (82,'2026_10_16_100000_add_approval_to_vendor_boosts_table',36);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (83,'2026_10_16_100001_fix_notifications_vendor_foreign_key',37);

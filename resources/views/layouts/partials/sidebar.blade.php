@@ -105,6 +105,20 @@
             </a>
         </li>
 
+        <li class="menu-label">Boosts</li>
+
+        <li>
+            <a href="{{ route('admin.boosts') }}" class="{{ request()->routeIs('admin.boosts') ? 'mm-active' : '' }}">
+                <div class="parent-icon"><i class='bx bx-trending-up'></i></div>
+                <div class="menu-title">
+                    Boost Requests
+                    @if(($pendingBoostCount ?? 0) > 0)
+                        <span class="badge bg-danger ms-1">{{ $pendingBoostCount }}</span>
+                    @endif
+                </div>
+            </a>
+        </li>
+
         <li class="menu-label">System</li>
 
         <li>

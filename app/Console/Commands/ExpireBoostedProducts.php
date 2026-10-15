@@ -6,6 +6,7 @@ use App\Models\VendorBoost;
 use App\Models\BoostedProduct;
 use App\Models\Product;
 use App\Mail\BoostExpiryMail;
+use App\Services\BoostWorkflow;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -27,6 +28,40 @@ class ExpireBoostedProducts extends Command
      * @var string
      */
     protected $description = 'Expire boosted products that have passed their end date';
+
+    /**
+     * Tell vendors when a scheduled boost goes live and three days before one
+     * ends. Each is sent once (live_notified_at / ending_notified_at).
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function notifyStartedAndEnding(Carbon $now): array
+    {
+        $workflow = app(BoostWorkflow::class);
+
+        $started = VendorBoost::approvedAndPaid()
+            ->whereNull('live_notified_at')
+            ->where('start_date', '<=', $now)
+            ->where('end_date', '>', $now)
+            ->get();
+        foreach ($started as $boost) {
+            $boost->update(['live_notified_at' => $now]);
+            $workflow->notifyVendor($boost, 'live');
+        }
+
+        $ending = VendorBoost::approvedAndPaid()
+            ->whereNull('ending_notified_at')
+            ->where('start_date', '<=', $now)
+            ->where('end_date', '>', $now)
+            ->where('end_date', '<=', $now->copy()->addDays(3))
+            ->get();
+        foreach ($ending as $boost) {
+            $boost->update(['ending_notified_at' => $now]);
+            $workflow->notifyVendor($boost, 'ending_soon');
+        }
+
+        return [$started->count(), $ending->count()];
+    }
 
     /**
      * Execute the console command.
@@ -142,6 +177,9 @@ class ExpireBoostedProducts extends Command
             }
 
             DB::commit();
+
+            [$startedCount, $endingCount] = $this->notifyStartedAndEnding($now);
+            $this->info("Sent {$startedCount} 'boost started' and {$endingCount} 'ending soon' notices");
 
             $endTime = Carbon::now();
             $duration = $endTime->diffInSeconds($startTime);

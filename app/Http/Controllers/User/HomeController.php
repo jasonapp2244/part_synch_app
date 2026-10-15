@@ -89,86 +89,16 @@ class HomeController extends Controller
     public function getHomeScreen()
     {
         $userId = Auth::id();
-        $now = now();
 
-        // Get Boost Positions (Top, Middle, Bottom)
-        $topPosition = BoostPosition::where('name', 'Top Section')->first();
-        $middlePosition = BoostPosition::where('name', 'Middle Section')->first();
-        $bottomPosition = BoostPosition::where('name', 'Bottom Section')->first();
-
-        // Top Section - Boosted Products
-        $topBoostedProducts = collect();
-        if ($topPosition) {
-            $topBoostedProducts = Product::whereHas('boostedProducts', function ($query) use ($topPosition, $now) {
-                    $query->where('is_active', true)
-                        ->where('boost_end', '>', $now)
-                        ->whereHas('vendorBoost', function ($q) use ($topPosition) {
-                            $q->where('boost_position_id', $topPosition->id)
-                                ->where('is_active', true)
-                                ->where('payment_status', 'success');
-                        });
-                })
-                ->with('productImages')
-                ->where('status', 'active')
-                ->where('stock_quantity', '>', 0)
-                ->withExists(['wishlists as is_wishlisted' => function ($query) use ($userId) {
-                    $query->where('user_id', $userId)->where('type', 'product');
-                }])
-                ->limit($topPosition->display_limit ?? 6)
-                ->get();
-        }
-
-        // Middle Section - Boosted Products
-        $middleBoostedProducts = collect();
-        if ($middlePosition) {
-            $middleBoostedProducts = Product::whereHas('boostedProducts', function ($query) use ($middlePosition, $now) {
-                    $query->where('is_active', true)
-                        ->where('boost_end', '>', $now)
-                        ->whereHas('vendorBoost', function ($q) use ($middlePosition) {
-                            $q->where('boost_position_id', $middlePosition->id)
-                                ->where('is_active', true)
-                                ->where('payment_status', 'success');
-                        });
-                })
-                ->with('productImages')
-                ->where('status', 'active')
-                ->where('stock_quantity', '>', 0)
-                ->withExists(['wishlists as is_wishlisted' => function ($query) use ($userId) {
-                    $query->where('user_id', $userId)->where('type', 'product');
-                }])
-                ->limit($middlePosition->display_limit ?? 8)
-                ->get();
-        }
-
-        // Bottom Section - Boosted Products
-        $bottomBoostedProducts = collect();
-        if ($bottomPosition) {
-            $bottomBoostedProducts = Product::whereHas('boostedProducts', function ($query) use ($bottomPosition, $now) {
-                    $query->where('is_active', true)
-                        ->where('boost_end', '>', $now)
-                        ->whereHas('vendorBoost', function ($q) use ($bottomPosition) {
-                            $q->where('boost_position_id', $bottomPosition->id)
-                                ->where('is_active', true)
-                                ->where('payment_status', 'success');
-                        });
-                })
-                ->with('productImages')
-                ->where('status', 'active')
-                ->where('stock_quantity', '>', 0)
-                ->withExists(['wishlists as is_wishlisted' => function ($query) use ($userId) {
-                    $query->where('user_id', $userId)->where('type', 'product');
-                }])
-                ->limit($bottomPosition->display_limit ?? 10)
-                ->get();
-        }
+        $topBoostedProducts = $this->boostedSection('Top Section', 6, $userId);
+        $middleBoostedProducts = $this->boostedSection('Middle Section', 8, $userId);
+        $bottomBoostedProducts = $this->boostedSection('Bottom Section', 10, $userId);
 
         // Regular Products (non-boosted)
         $regularProducts = Product::with('productImages')
             ->where('status', 'active')
             ->where('stock_quantity', '>', 0)
-            ->whereDoesntHave('boostedProducts', function ($query) use ($now) {
-                $query->where('is_active', true)->where('boost_end', '>', $now);
-            })
+            ->whereDoesntHave('boostedProducts', fn ($query) => $query->live())
             ->withExists(['wishlists as is_wishlisted' => function ($query) use ($userId) {
                 $query->where('user_id', $userId)->where('type', 'product');
             }])
@@ -204,6 +134,33 @@ class HomeController extends Controller
                 'vendor_shops' => $vendor_shops
             ]
         ]);
+    }
+
+    /**
+     * Products boosted into one home-page position right now.
+     *
+     * A position shows at most display_limit products. When more are paid for
+     * than fit (the admin schedules them, but a limit can be lowered later),
+     * the order rotates every hour so every paying vendor gets seen, while one
+     * buyer scrolling still sees a stable list.
+     */
+    private function boostedSection(string $positionName, int $defaultLimit, $userId)
+    {
+        $position = BoostPosition::where('name', $positionName)->first();
+        if (! $position) {
+            return collect();
+        }
+
+        return Product::liveBoosted($position->id)
+            ->with('productImages')
+            ->where('status', 'active')
+            ->where('stock_quantity', '>', 0)
+            ->withExists(['wishlists as is_wishlisted' => function ($query) use ($userId) {
+                $query->where('user_id', $userId)->where('type', 'product');
+            }])
+            ->inRandomOrder((int) now()->format('YmdH'))
+            ->limit($position->display_limit ?: $defaultLimit)
+            ->get();
     }
 
     public function viewMorePproducts()

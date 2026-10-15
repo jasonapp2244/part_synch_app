@@ -94,9 +94,11 @@ Route::get('/legal/terms', [AppConfigController::class, 'terms']);
 
 // ────────────────────────────────
 // Protected Routes (Requires Sanctum Auth)
-Route::get('/admin/boost-packages', [BoostPackageController::class, 'index']);
 // ────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
+
+    // Active boost packages. Was public (BCR-11); signed-in users only now.
+    Route::get('/admin/boost-packages', [BoostPackageController::class, 'index']);
 
     // ───────────── Auth & Profile ─────────────
     Route::post('/reset_password', [AuthController::class, 'resetPassword']);
@@ -187,12 +189,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/positions', [VendorBoostController::class, 'getBoostPositions']);
             Route::get('/pricing', [VendorBoostController::class, 'getBoostPricing']);
             Route::get('/price-preview', [VendorBoostController::class, 'getPricePreview']);
-            Route::post('/purchase', [VendorBoostController::class, 'purchaseBoost']);
-            Route::post('/confirm-payment', [VendorBoostController::class, 'confirmBoostPayment']);
-            Route::post('/test-confirm-payment', [VendorBoostController::class, 'testConfirmBoostPayment']);
+            // Payment happens outside the app; an admin approves in the panel.
+            Route::post('/request', [VendorBoostController::class, 'requestBoost']);
             Route::post('/cancel', [VendorBoostController::class, 'cancelBoostPurchase']);
             Route::post('/delete', [VendorBoostController::class, 'deleteBoost']);
-            Route::post('/boost-existing-products', [VendorBoostController::class, 'boostExistingProducts']);
             Route::get('/my-boosts', [VendorBoostController::class, 'getMyBoosts']);
             Route::get('/my-boosted-products', [VendorBoostController::class, 'getMyBoostedProducts']);
         });

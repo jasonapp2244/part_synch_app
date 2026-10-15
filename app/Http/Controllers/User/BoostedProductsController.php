@@ -16,7 +16,6 @@ class BoostedProductsController extends Controller
      */
     public function getBoostedProductsSlider()
     {
-        $now = now();
         $userId = Auth::id();
 
         $positions = ['Top Section', 'Middle Section', 'Bottom Section'];
@@ -33,22 +32,14 @@ class BoostedProductsController extends Controller
                 continue;
             }
 
-            $boostedProducts = Product::whereHas('boostedProducts', function ($query) use ($position, $now) {
-                    $query->where('is_active', true)
-                        ->where('boost_end', '>', $now)
-                        ->whereHas('vendorBoost', function ($q) use ($position) {
-                            $q->where('boost_position_id', $position->id)
-                                ->where('is_active', true)
-                                ->where('payment_status', 'success');
-                        });
-                })
+            $boostedProducts = Product::liveBoosted($position->id)
                 ->with('productImages')
                 ->where('status', 'active')
                 ->where('stock_quantity', '>', 0)
                 ->withExists(['wishlists as is_wishlisted' => function ($query) use ($userId) {
                     $query->where('user_id', $userId)->where('type', 'product');
                 }])
-                ->inRandomOrder()
+                ->inRandomOrder((int) now()->format('YmdH'))
                 ->limit($position->display_limit ?? 10)
                 ->get();
 
@@ -69,16 +60,8 @@ class BoostedProductsController extends Controller
     public function getAllBoostedProducts()
     {
         $userId = Auth::id();
-        $now = now();
 
-        $boostedProducts = Product::whereHas('boostedProducts', function ($query) use ($now) {
-                $query->where('is_active', true)
-                    ->where('boost_end', '>', $now)
-                    ->whereHas('vendorBoost', function ($q) {
-                        $q->where('is_active', true)
-                            ->where('payment_status', 'success');
-                    });
-            })
+        $boostedProducts = Product::liveBoosted()
             ->with(['productImages', 'boostedProducts.vendorBoost.position'])
             ->where('status', 'active')
             ->where('stock_quantity', '>', 0)

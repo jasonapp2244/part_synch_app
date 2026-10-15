@@ -122,6 +122,15 @@ class Product extends Model
         return $this->hasMany(BoostedProduct::class, 'product_id');
     }
 
+    /**
+     * Products with a boost showing right now (optionally in one position).
+     * See BoostedProduct::scopeLive.
+     */
+    public function scopeLiveBoosted($query, ?int $positionId = null)
+    {
+        return $query->whereHas('boostedProducts', fn ($q) => $q->live($positionId));
+    }
+
     public function vendorBoosts()
     {
         return $this->belongsToMany(VendorBoost::class, 'boosted_products', 'product_id', 'vendor_boost_id')

@@ -8,10 +8,10 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Schedule boost expiration check to run daily at midnight
+// Boost upkeep: expire ended boosts, tell vendors when a scheduled boost
+// starts and three days before one ends. Buyers' feeds check dates live, so
+// this only drives flags and notices; hourly keeps the notices timely.
 Schedule::command('boost:expire')
-    ->daily()
-    ->at('00:00')
-    ->timezone('UTC')
+    ->hourly()
     ->withoutOverlapping()
     ->runInBackground();

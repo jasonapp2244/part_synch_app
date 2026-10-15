@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Report;
 use App\Models\Review;
+use App\Models\VendorBoost;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -42,7 +43,7 @@ class AppServiceProvider extends ServiceProvider
     protected function shareModerationCounts(): void
     {
         View::composer('layouts.partials.sidebar', function ($view) {
-            $counts = ['pendingReportCount' => 0, 'pendingReviewCount' => 0];
+            $counts = ['pendingReportCount' => 0, 'pendingReviewCount' => 0, 'pendingBoostCount' => 0];
 
             try {
                 if (Schema::hasTable('reports')) {
@@ -51,6 +52,10 @@ class AppServiceProvider extends ServiceProvider
 
                 if (Schema::hasTable('reviews')) {
                     $counts['pendingReviewCount'] = Review::where('status', 'pending')->count();
+                }
+
+                if (Schema::hasColumn('vendor_boosts', 'approval_status')) {
+                    $counts['pendingBoostCount'] = VendorBoost::where('approval_status', 'pending')->count();
                 }
             } catch (\Throwable $e) {
                 // Leave both at zero — a sidebar badge is not worth a 500.

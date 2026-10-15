@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\{
     LegalPageController,
     ProfileController,
     BoostPackageController,
+    BoostRequestController,
     ReportController,
     ReviewController
 };
@@ -105,6 +106,15 @@ Route::middleware('admin')->group(function () {
     Route::put('/boost-package/{id}', [BoostPackageController::class, 'update'])->name('boost.package.update');
     Route::post('/boost-package/{id}/toggle-status', [BoostPackageController::class, 'toggleStatus'])->name('boost.package.toggle.status');
     Route::delete('/boost-package/{id}', [BoostPackageController::class, 'destroy'])->name('boost.package.destroy');
+    Route::put('/boost-position/{id}', [BoostPackageController::class, 'updatePosition'])->name('boost.position.update');
+
+    // Boost requests: vendors request in the app, pay outside it, admin approves
+    Route::get('/boost-requests', [BoostRequestController::class, 'index'])->name('admin.boosts');
+    Route::post('/boost-requests', [BoostRequestController::class, 'store'])->name('admin.boosts.store');
+    Route::get('/boost-requests/vendor/{vendorId}/products', [BoostRequestController::class, 'vendorProducts'])->whereNumber('vendorId')->name('admin.boosts.vendor.products');
+    Route::post('/boost-requests/{id}/approve', [BoostRequestController::class, 'approve'])->whereNumber('id')->name('admin.boosts.approve');
+    Route::post('/boost-requests/{id}/reject', [BoostRequestController::class, 'reject'])->whereNumber('id')->name('admin.boosts.reject');
+    Route::post('/boost-requests/{id}/cancel', [BoostRequestController::class, 'cancel'])->whereNumber('id')->name('admin.boosts.cancel');
 
     // Moderation — reported content and product reviews.
     // The reports queue is what App Store review looks for as proof that

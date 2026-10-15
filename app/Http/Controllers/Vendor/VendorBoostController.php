@@ -2,65 +2,33 @@
 
 namespace App\Http\Controllers\Vendor;
 
-use App\Models\Product;
-use App\Models\VendorBoost;
+use App\Http\Controllers\Controller;
+use App\Models\BoostedProduct;
 use App\Models\BoostPackage;
 use App\Models\BoostPosition;
-use App\Models\BoostedProduct;
-use App\Models\VendorPayment;
-use App\Http\Controllers\Controller;
+use App\Models\Product;
+use App\Models\VendorBoost;
+use App\Services\BoostCapacity;
+use App\Services\BoostWorkflow;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use App\Services\StripeService;
-use App\Services\PaypalService;
-use App\Mail\BoostPurchaseMail;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
+/**
+ * Vendor side of product boosts.
+ *
+ * The vendor requests a boost in the app; payment happens outside the app
+ * (the admin sends an invoice or payment link) and an admin approves it in
+ * the panel. There is deliberately no card checkout here: Apple 3.1.1 and
+ * Google Play billing reject a card gateway for a digital promotion.
+ */
 class VendorBoostController extends Controller
 {
-    /**
-     * Send boost purchase email with error handling
-     */
-    private function sendBoostEmail($vendorBoost, $email, $recipientType, $context = '')
+    public function __construct(private BoostWorkflow $workflow, private BoostCapacity $capacity)
     {
-        try {
-            // Queue email for background processing
-            Mail::to($email)->queue(new BoostPurchaseMail($vendorBoost, $recipientType));
-            Log::info("Boost email queued successfully {$context}", [
-                'email' => $email,
-                'recipient_type' => $recipientType,
-                'vendor_boost_id' => $vendorBoost->id
-            ]);
-            return true;
-        } catch (\Exception $e) {
-            Log::error("Failed to queue boost email {$context}", [
-                'email' => $email,
-                'recipient_type' => $recipientType,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'vendor_boost_id' => $vendorBoost->id
-            ]);
-            
-            // Try to send directly (fallback) - but don't block the response
-            try {
-                Mail::to($email)->send(new BoostPurchaseMail($vendorBoost, $recipientType));
-                Log::info("Boost email sent directly (fallback) {$context}", [
-                    'email' => $email,
-                    'vendor_boost_id' => $vendorBoost->id
-                ]);
-            } catch (\Exception $fallbackException) {
-                Log::error("Fallback email send also failed {$context}", [
-                    'email' => $email,
-                    'error' => $fallbackException->getMessage(),
-                    'vendor_boost_id' => $vendorBoost->id
-                ]);
-            }
-            
-            return false;
-        }
     }
 
     /**
@@ -100,7 +68,7 @@ class VendorBoostController extends Controller
                         'position_id' => $position->id,
                         'name' => $position->name,
                         'price_multiplier' => $position->price_multiplier,
-                        'final_price' => round($package->price * $position->price_multiplier, 2)
+                        'final_price' => BoostWorkflow::price($package, $position),
                     ];
                 })
             ];
@@ -114,13 +82,14 @@ class VendorBoostController extends Controller
     }
 
     /**
-     * Get price preview for package and position combination
+     * Price and earliest start for a package + position (+ product count).
      */
     public function getPricePreview(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'package_id' => 'required|exists:boost_packages,id',
-            'position_id' => 'required|exists:boost_positions,id'
+            'position_id' => 'required|exists:boost_positions,id',
+            'product_count' => 'nullable|integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -133,8 +102,8 @@ class VendorBoostController extends Controller
 
         $package = BoostPackage::find($request->package_id);
         $position = BoostPosition::find($request->position_id);
-
-        $finalPrice = round($package->price * $position->price_multiplier, 2);
+        $count = (int) ($request->product_count ?: 1);
+        $next = $this->capacity->nextAvailableStart($position, $count, (int) $package->duration_days);
 
         return response()->json([
             'status' => true,
@@ -144,22 +113,33 @@ class VendorBoostController extends Controller
                 'position_name' => $position->name,
                 'base_price' => $package->price,
                 'price_multiplier' => $position->price_multiplier,
-                'final_price' => $finalPrice,
+                'final_price' => BoostWorkflow::price($package, $position),
                 'duration_days' => $package->duration_days,
-                'product_limit' => $package->product_limit,
-                'currency' => $package->currency
+                'product_limit' => min((int) $package->product_limit, (int) $position->display_limit),
+                'currency' => $package->currency,
+                'next_available_date' => $next?->toIso8601String(),
+                'available_now' => $next !== null && $next->lte(now()->addMinute()),
             ]
         ]);
     }
 
     /**
-     * Get boost positions (Top, Middle, Bottom sections)
+     * Active boost positions, each with when one product could start.
      */
     public function getBoostPositions()
     {
         $positions = BoostPosition::where('status', true)
             ->orderBy('priority', 'asc')
-            ->get();
+            ->get()
+            ->map(function (BoostPosition $position) {
+                $next = $this->capacity->nextAvailableStart($position, 1, 1);
+
+                return array_merge($position->toArray(), [
+                    'slots_in_use' => $this->capacity->inUseNow($position),
+                    'next_available_date' => $next?->toIso8601String(),
+                    'available_now' => $next !== null && $next->lte(now()->addMinute()),
+                ]);
+            });
 
         return response()->json([
             'status' => true,
@@ -169,372 +149,59 @@ class VendorBoostController extends Controller
     }
 
     /**
-     * Purchase a boost package
+     * Request a boost. Payment is arranged outside the app; an admin approves.
      */
-    public function purchaseBoost(Request $request)
+    public function requestBoost(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'package_id' => 'required|exists:boost_packages,id',
-            'boost_position_id' => 'nullable|exists:boost_positions,id',
-            'product_ids' => 'required|array|min:1',
-            'product_ids.*' => 'exists:products,id',
-            'payment_method' => 'required|in:stripe,paypal'
+            'package_id' => 'required|integer|exists:boost_packages,id',
+            'position_id' => 'required|integer|exists:boost_positions,id',
+            'product_ids' => 'required|array|min:1|max:100',
+            'product_ids.*' => 'integer|distinct',
+            'note' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Validation failed',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
-            ], 400);
+            ], 422);
         }
 
-        $vendor = Auth::user();
-
-        // Check if vendor
-        if ($vendor->role_id != 2) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Only vendors can purchase boosts'
-            ], 403);
-        }
-
-        $package = BoostPackage::findOrFail($request->package_id);
-        
-        // Get position for price calculation
-        $position = $request->boost_position_id 
-            ? BoostPosition::find($request->boost_position_id) 
-            : null;
-        $priceMultiplier = $position ? $position->price_multiplier : 1.00;
-        $finalPrice = round($package->price * $priceMultiplier, 2);
-
-        // Check product limit
-        if (count($request->product_ids) > $package->product_limit) {
-            return response()->json([
-                'status' => false,
-                'message' => "You can only boost {$package->product_limit} products with this package"
-            ], 400);
-        }
-
-        // Verify all products belong to this vendor
-        $products = Product::whereIn('id', $request->product_ids)
-            ->where('user_id', $vendor->id)
-            ->get();
-
-        if ($products->count() != count($request->product_ids)) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Some products do not belong to you'
-            ], 400);
-        }
-
-        // Check if any product already has an active boost for this vendor
-        $now = now();
-        $activeBoostedProducts = BoostedProduct::whereIn('product_id', $request->product_ids)
-            ->where('is_active', true)
-            ->where('boost_end', '>', $now)
-            ->whereHas('vendorBoost', function ($query) use ($vendor) {
-                $query->where('vendor_id', $vendor->id)
-                    ->where('is_active', true)
-                    ->where('payment_status', 'success');
-            })
-            ->with(['product', 'vendorBoost'])
-            ->get();
-
-        if ($activeBoostedProducts->count() > 0) {
-            $productNames = $activeBoostedProducts->pluck('product.name')->unique()->implode(', ');
-            $boostEndDates = $activeBoostedProducts->pluck('boost_end')->map(function ($date) {
-                return $date->format('Y-m-d H:i:s');
-            })->unique()->implode(', ');
-            
-            return response()->json([
-                'status' => false,
-                'message' => 'This product already has an active boost. Please delete the existing boost before adding a new one.',
-                'conflicting_products' => $activeBoostedProducts->map(function ($bp) {
-                    return [
-                        'product_id' => $bp->product_id,
-                        'product_name' => $bp->product->name ?? 'N/A',
-                        'boost_end' => $bp->boost_end->format('Y-m-d H:i:s')
-                    ];
-                }),
-                'delete_endpoint' => '/api/vendor/boost/delete'
-            ], 400);
-        }
-
-        DB::beginTransaction();
         try {
-
-            // Create vendor boost record
-            $vendorBoost = VendorBoost::create([
-                'vendor_id' => $vendor->id,
-                'package_id' => $package->id,
-                'boost_position_id' => $request->boost_position_id,
-                'amount' => $finalPrice,
-                'currency' => $package->currency,
-                'start_date' => now(),
-                'end_date' => now()->addDays($package->duration_days),
-                'payment_status' => 'pending',
-                'payment_method' => $request->payment_method,
-                'is_active' => false
-            ]);
-
-            // Create payment intent/URL based on payment method
-            if ($request->payment_method == 'stripe') {
-                $stripeService = new StripeService();
-                $paymentData = $stripeService->createPaymentIntent($finalPrice, $package->currency);
-
-                // Store payment intent ID in metadata
-                $vendorBoost->update([
-                    'metadata' => ['payment_intent_id' => $paymentData['payment_intent_id']]
-                ]);
-
-                // Commit transaction before returning
-                DB::commit();
-
-                return response()->json([
-                    'status' => true,
-                    'message' => 'Payment intent created',
-                    'vendor_boost_id' => $vendorBoost->id,
-                    'client_secret' => $paymentData['client_secret'],
-                    'payment_intent_id' => $paymentData['payment_intent_id'],
-                    'amount' => $finalPrice,
-                    'base_price' => $package->price,
-                    'price_multiplier' => $priceMultiplier,
-                    'currency' => $package->currency
-                ]);
-            } else {
-                $paypalService = new PaypalService();
-                $approvalUrl = $paypalService->createPaypalPayment($finalPrice, $package->currency);
-
-                // Commit transaction before returning
-                DB::commit();
-
-                return response()->json([
-                    'status' => true,
-                    'message' => 'PayPal payment created',
-                    'vendor_boost_id' => $vendorBoost->id,
-                    'approval_url' => $approvalUrl,
-                    'amount' => $finalPrice,
-                    'base_price' => $package->price,
-                    'price_multiplier' => $priceMultiplier,
-                    'currency' => $package->currency
-                ]);
-            }
-        } catch (\Exception $e) {
-            DB::rollBack();
+            $boost = $this->workflow->request(
+                Auth::user(),
+                BoostPackage::findOrFail($request->package_id),
+                BoostPosition::findOrFail($request->position_id),
+                $request->product_ids,
+                $request->note
+            );
+        } catch (ValidationException $e) {
             return response()->json([
                 'status' => false,
-                'message' => 'Failed to create boost purchase',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => collect($e->errors())->flatten()->first(),
+                'errors' => $e->errors(),
+            ], 422);
         }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Request sent. Our team will contact you by email to complete it.',
+            'data' => $this->present($boost->fresh()),
+        ], 201);
     }
 
     /**
-     * Confirm boost payment and activate boost
-     */
-    public function confirmBoostPayment(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'vendor_boost_id' => 'required|exists:vendor_boosts,id',
-            'payment_token' => 'required',
-            'payment_method' => 'required|in:stripe,paypal',
-            'PayerID' => 'nullable|string'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 400);
-        }
-
-        $vendor = Auth::user();
-        $vendorBoost = VendorBoost::where('id', $request->vendor_boost_id)
-            ->where('vendor_id', $vendor->id)
-            ->firstOrFail();
-
-        if ($vendorBoost->payment_status == 'success') {
-            return response()->json([
-                'status' => false,
-                'message' => 'This boost has already been paid'
-            ], 400);
-        }
-
-        // Get product IDs from request (they should be sent)
-        $productIds = $request->product_ids ?? [];
-
-        if (empty($productIds)) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Product IDs are required'
-            ], 400);
-        }
-
-        // Check if any product already has an active boost for this vendor
-        $now = now();
-        $activeBoostedProducts = BoostedProduct::whereIn('product_id', $productIds)
-            ->where('is_active', true)
-            ->where('boost_end', '>', $now)
-            ->whereHas('vendorBoost', function ($query) use ($vendor) {
-                $query->where('vendor_id', $vendor->id)
-                    ->where('is_active', true)
-                    ->where('payment_status', 'success');
-            })
-            ->with(['product', 'vendorBoost'])
-            ->get();
-
-        if ($activeBoostedProducts->count() > 0) {
-            $productNames = $activeBoostedProducts->pluck('product.name')->unique()->implode(', ');
-            $boostEndDates = $activeBoostedProducts->pluck('boost_end')->map(function ($date) {
-                return $date->format('Y-m-d H:i:s');
-            })->unique()->implode(', ');
-            
-            return response()->json([
-                'status' => false,
-                'message' => 'This product already has an active boost. Please delete the existing boost before adding a new one.',
-                'conflicting_products' => $activeBoostedProducts->map(function ($bp) {
-                    return [
-                        'product_id' => $bp->product_id,
-                        'product_name' => $bp->product->name ?? 'N/A',
-                        'boost_end' => $bp->boost_end->format('Y-m-d H:i:s')
-                    ];
-                }),
-                'delete_endpoint' => '/api/vendor/boost/delete'
-            ], 400);
-        }
-
-        DB::beginTransaction();
-        try {
-            // Verify payment
-            if ($request->payment_method == 'stripe') {
-                $stripeService = new StripeService();
-                $stripeService->verifyPaymentIntent($request->payment_token);
-            } else {
-                $paypalService = new PaypalService();
-                $paypalService->verifyPaypalPayment(
-                    $request->payment_token,
-                    $request->PayerID ?? $request->payerID
-                );
-            }
-
-            // Update vendor boost
-            $vendorBoost->update([
-                'payment_status' => 'success',
-                'transaction_id' => $request->payment_token,
-                'is_active' => true,
-                'start_date' => now(),
-                'end_date' => now()->addDays($vendorBoost->package->duration_days)
-            ]);
-
-            // Verify products belong to vendor
-            $products = Product::whereIn('id', $productIds)
-                ->where('user_id', $vendor->id)
-                ->get();
-
-            if ($products->count() != count($productIds)) {
-                DB::rollBack();
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Some products do not belong to you'
-                ], 400);
-            }
-
-            // Create boosted products
-            foreach ($products as $product) {
-                BoostedProduct::create([
-                    'vendor_boost_id' => $vendorBoost->id,
-                    'product_id' => $product->id,
-                    'boost_start' => now(),
-                    'boost_end' => $vendorBoost->end_date,
-                    'is_active' => true
-                ]);
-
-                // Update product is_top flag
-                $product->update([
-                    'is_top' => true,
-                    'top_start_date' => now(),
-                    'top_expire_date' => $vendorBoost->end_date
-                ]);
-            }
-
-            // Create vendor payment record
-            if ($vendor->vendor_type_id) {
-                VendorPayment::create([
-                    'user_id' => $vendor->id,
-                    'vendor_id' => $vendor->vendor_type_id, // vendor_type_id from users table
-                    'amount' => $vendorBoost->amount,
-                    'status' => 'paid'
-                ]);
-            }
-
-            DB::commit();
-
-            // Send emails to vendor and admin (using queue for better reliability)
-            $this->sendBoostEmail($vendorBoost, $vendor->email, 'vendor', '(Payment Confirmed)');
-
-                // Email to admin
-                $adminEmail = env('Admin_Email');
-                if ($adminEmail) {
-                $this->sendBoostEmail($vendorBoost, $adminEmail, 'admin', '(Payment Confirmed)');
-            } else {
-                Log::warning('Admin email not configured', [
-                    'vendor_boost_id' => $vendorBoost->id
-                ]);
-            }
-
-            return response()->json([
-                'status' => true,
-                'message' => 'Boost activated successfully',
-                'data' => $vendorBoost->load(['package', 'position', 'boostedProducts.product'])
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'status' => false,
-                'message' => 'Payment verification failed',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Boost existing products (select through checkbox)
-     */
-    public function boostExistingProducts(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'package_id' => 'required|exists:boost_packages,id',
-            'product_ids' => 'required|array|min:1',
-            'product_ids.*' => 'exists:products,id',
-            'boost_position_id' => 'nullable|exists:boost_positions,id',
-            'payment_method' => 'required|in:stripe,paypal'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 400);
-        }
-
-        // Use the same purchase boost logic
-        return $this->purchaseBoost($request);
-    }
-
-    /**
-     * Get vendor's active boosts
+     * All of the vendor's boost requests, newest first.
      */
     public function getMyBoosts()
     {
-        $vendor = Auth::user();
-
-        $boosts = VendorBoost::where('vendor_id', $vendor->id)
+        $boosts = VendorBoost::where('vendor_id', Auth::id())
             ->with(['package', 'position', 'boostedProducts.product.productImages'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->map(fn (VendorBoost $boost) => $this->present($boost));
 
         return response()->json([
             'status' => true,
@@ -544,12 +211,12 @@ class VendorBoostController extends Controller
     }
 
     /**
-     * Cancel boost purchase (before payment)
+     * Withdraw a request that has not been approved yet.
      */
     public function cancelBoostPurchase(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'vendor_boost_id' => 'required|exists:vendor_boosts,id'
+            'vendor_boost_id' => 'required|integer'
         ]);
 
         if ($validator->fails()) {
@@ -560,53 +227,38 @@ class VendorBoostController extends Controller
             ], 400);
         }
 
-        $vendor = Auth::user();
-        $vendorBoost = VendorBoost::where('id', $request->vendor_boost_id)
-            ->where('vendor_id', $vendor->id)
-            ->firstOrFail();
+        $boost = VendorBoost::where('id', $request->vendor_boost_id)
+            ->where('vendor_id', Auth::id())
+            ->first();
 
-        // Only allow cancellation if payment is pending
-        if ($vendorBoost->payment_status !== 'pending') {
+        if (! $boost) {
+            return response()->json(['status' => false, 'message' => 'Boost request not found.'], 404);
+        }
+
+        if ($boost->approval_status !== 'pending') {
             return response()->json([
                 'status' => false,
-                'message' => 'Cannot cancel boost. Payment status is: ' . $vendorBoost->payment_status
+                'message' => 'Only a pending request can be withdrawn. Contact support about an approved boost.'
             ], 400);
         }
 
-        try {
-            // Update payment status to cancelled
-            $vendorBoost->update([
-                'payment_status' => 'failed',
-                'is_active' => false
-            ]);
+        $this->workflow->cancel($boost, 'Withdrawn by vendor', false, true);
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Boost purchase cancelled successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to cancel boost purchase',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'status' => true,
+            'message' => 'Boost request withdrawn.'
+        ]);
     }
 
     /**
-     * Get vendor's active boosted products
+     * Get vendor's boosted products that are showing right now
      */
     public function getMyBoostedProducts()
     {
-        $vendor = Auth::user();
+        $vendorId = Auth::id();
 
-        $boostedProducts = BoostedProduct::whereHas('vendorBoost', function ($query) use ($vendor) {
-                $query->where('vendor_id', $vendor->id)
-                    ->where('is_active', true)
-                    ->where('payment_status', 'success');
-            })
-            ->where('is_active', true)
-            ->where('boost_end', '>', now())
+        $boostedProducts = BoostedProduct::live()
+            ->whereHas('vendorBoost', fn ($q) => $q->where('vendor_id', $vendorId))
             ->with(['product.productImages', 'vendorBoost.package', 'vendorBoost.position'])
             ->get();
 
@@ -618,14 +270,13 @@ class VendorBoostController extends Controller
     }
 
     /**
-     * Delete active boost for specific products
-     * Allows vendor to delete active boost so they can add new boost for same products
+     * Stop the live boost on some of the vendor's products early.
      */
     public function deleteBoost(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'product_ids' => 'required|array|min:1',
-            'product_ids.*' => 'exists:products,id'
+            'product_ids.*' => 'integer'
         ]);
 
         if ($validator->fails()) {
@@ -638,271 +289,90 @@ class VendorBoostController extends Controller
 
         $vendor = Auth::user();
 
-        // Check if vendor
-        if ($vendor->role_id != 2) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Only vendors can delete boosts'
-            ], 403);
-        }
-
-        // Verify all products belong to this vendor
-        $products = Product::whereIn('id', $request->product_ids)
+        $productIds = Product::whereIn('id', $request->product_ids)
             ->where('user_id', $vendor->id)
-            ->get();
+            ->pluck('id')
+            ->all();
 
-        if ($products->count() != count($request->product_ids)) {
+        if (count($productIds) !== count(array_unique($request->product_ids))) {
             return response()->json([
                 'status' => false,
                 'message' => 'Some products do not belong to you'
             ], 400);
         }
 
-        DB::beginTransaction();
-        try {
-            $now = now();
-            $deletedCount = 0;
-            $productIds = $products->pluck('id')->toArray();
+        $running = BoostedProduct::whereIn('product_id', $productIds)
+            ->where('is_active', true)
+            ->where('boost_end', '>', now())
+            ->whereHas('vendorBoost', fn ($q) => $q->approvedAndPaid()->where('vendor_id', $vendor->id))
+            ->get();
 
-            // Find all active boosted products for these products and this vendor
-            $activeBoostedProducts = BoostedProduct::whereIn('product_id', $productIds)
-                ->where('is_active', true)
-                ->where('boost_end', '>', $now)
-                ->whereHas('vendorBoost', function ($query) use ($vendor) {
-                    $query->where('vendor_id', $vendor->id)
-                        ->where('is_active', true)
-                        ->where('payment_status', 'success');
-                })
-                ->with(['vendorBoost', 'product'])
-                ->get();
-
-            if ($activeBoostedProducts->count() == 0) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'No active boosts found for these products'
-                ], 404);
-            }
-
-            // Group by vendor_boost_id to handle multiple products in same boost
-            $boostIds = $activeBoostedProducts->pluck('vendor_boost_id')->unique();
-            
-            // Deactivate all boosted products
-            foreach ($activeBoostedProducts as $boostedProduct) {
-                $boostedProduct->update(['is_active' => false]);
-                $deletedCount++;
-            }
-
-            // Deactivate vendor boosts if all their products are deactivated
-            foreach ($boostIds as $boostId) {
-                $boost = VendorBoost::find($boostId);
-                if ($boost) {
-                    $remainingActiveProducts = BoostedProduct::where('vendor_boost_id', $boostId)
-                        ->where('is_active', true)
-                        ->where('boost_end', '>', $now)
-                        ->count();
-                    
-                    if ($remainingActiveProducts == 0) {
-                        $boost->update(['is_active' => false]);
-                    }
-                }
-            }
-
-            // Remove is_top flag from products if no other active boosts exist
-            foreach ($products as $product) {
-                $otherActiveBoosts = BoostedProduct::where('product_id', $product->id)
-                    ->where('is_active', true)
-                    ->where('boost_end', '>', $now)
-                    ->whereHas('vendorBoost', function ($query) {
-                        $query->where('is_active', true)
-                            ->where('payment_status', 'success');
-                    })
-                    ->count();
-
-                if ($otherActiveBoosts == 0) {
-                    $product->update([
-                        'is_top' => false,
-                        'top_start_date' => null,
-                        'top_expire_date' => null
-                    ]);
-                }
-            }
-
-            DB::commit();
-
-            return response()->json([
-                'status' => true,
-                'message' => "Successfully deleted {$deletedCount} active boost(s). You can now add new boost for these products.",
-                'deleted_count' => $deletedCount,
-                'product_ids' => $productIds
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Failed to delete boost', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'vendor_id' => $vendor->id,
-                'product_ids' => $request->product_ids
-            ]);
-            
+        if ($running->isEmpty()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Failed to delete boost',
-                'error' => $e->getMessage()
+                'message' => 'No active boosts found for these products'
+            ], 404);
+        }
+
+        try {
+            DB::transaction(function () use ($running, $productIds) {
+                BoostedProduct::whereIn('id', $running->pluck('id'))->update(['is_active' => false]);
+
+                foreach ($running->pluck('vendor_boost_id')->unique() as $boostId) {
+                    $left = BoostedProduct::where('vendor_boost_id', $boostId)->where('is_active', true)->exists();
+                    if (! $left) {
+                        VendorBoost::where('id', $boostId)->update(['is_active' => false]);
+                    }
+                }
+
+                $this->workflow->clearTopFlags($productIds);
+            });
+        } catch (\Throwable $e) {
+            Log::error('Failed to stop boost', ['vendor_id' => $vendor->id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to stop the boost. Please try again.'
             ], 500);
         }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Boost stopped for ' . $running->count() . ' product(s).',
+            'deleted_count' => $running->count(),
+            'product_ids' => $productIds
+        ]);
     }
 
     /**
-     * Test endpoint - Skip payment verification (Development/Testing only)
-     * Use this for Postman testing when you can't complete Stripe payment
+     * The shape the app reads for one boost.
      */
-    public function testConfirmBoostPayment(Request $request)
+    private function present(VendorBoost $boost): array
     {
-        // Only allow in non-production environment
-        if (app()->environment('production')) {
-            return response()->json([
-                'status' => false,
-                'message' => 'This endpoint is not available in production'
-            ], 403);
-        }
+        $boost->loadMissing(['package', 'position', 'boostedProducts.product.productImages']);
 
-        $validator = Validator::make($request->all(), [
-            'vendor_boost_id' => 'required|exists:vendor_boosts,id',
-            'product_ids' => 'required|array|min:1',
-            'product_ids.*' => 'exists:products,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 400);
-        }
-
-        $vendor = Auth::user();
-        $vendorBoost = VendorBoost::where('id', $request->vendor_boost_id)
-            ->where('vendor_id', $vendor->id)
-            ->firstOrFail();
-
-        if ($vendorBoost->payment_status == 'success') {
-            return response()->json([
-                'status' => false,
-                'message' => 'This boost has already been paid'
-            ], 400);
-        }
-
-        // Check if any product already has an active boost for this vendor
-        $now = now();
-        $activeBoostedProducts = BoostedProduct::whereIn('product_id', $request->product_ids)
-            ->where('is_active', true)
-            ->where('boost_end', '>', $now)
-            ->whereHas('vendorBoost', function ($query) use ($vendor) {
-                $query->where('vendor_id', $vendor->id)
-                    ->where('is_active', true)
-                    ->where('payment_status', 'success');
-            })
-            ->with(['product', 'vendorBoost'])
-            ->get();
-
-        if ($activeBoostedProducts->count() > 0) {
-            $productNames = $activeBoostedProducts->pluck('product.name')->unique()->implode(', ');
-            $boostEndDates = $activeBoostedProducts->pluck('boost_end')->map(function ($date) {
-                return $date->format('Y-m-d H:i:s');
-            })->unique()->implode(', ');
-            
-            return response()->json([
-                'status' => false,
-                'message' => 'This product already has an active boost. Please delete the existing boost before adding a new one.',
-                'conflicting_products' => $activeBoostedProducts->map(function ($bp) {
-                    return [
-                        'product_id' => $bp->product_id,
-                        'product_name' => $bp->product->name ?? 'N/A',
-                        'boost_end' => $bp->boost_end->format('Y-m-d H:i:s')
-                    ];
-                }),
-                'delete_endpoint' => '/api/vendor/boost/delete'
-            ], 400);
-        }
-
-        DB::beginTransaction();
-        try {
-            // Skip payment verification - Directly activate (TEST MODE)
-            $vendorBoost->update([
-                'payment_status' => 'success',
-                'transaction_id' => 'test_' . time(),
-                'is_active' => true,
-                'start_date' => now(),
-                'end_date' => now()->addDays($vendorBoost->package->duration_days)
-            ]);
-
-            $products = Product::whereIn('id', $request->product_ids)
-                ->where('user_id', $vendor->id)
-                ->get();
-
-            if ($products->count() != count($request->product_ids)) {
-                DB::rollBack();
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Some products do not belong to you'
-                ], 400);
-            }
-
-            // Create boosted products
-            foreach ($products as $product) {
-                BoostedProduct::create([
-                    'vendor_boost_id' => $vendorBoost->id,
-                    'product_id' => $product->id,
-                    'boost_start' => now(),
-                    'boost_end' => $vendorBoost->end_date,
-                    'is_active' => true
-                ]);
-
-                $product->update([
-                    'is_top' => true,
-                    'top_start_date' => now(),
-                    'top_expire_date' => $vendorBoost->end_date
-                ]);
-            }
-
-            // Create vendor payment record
-            if ($vendor->vendor_type_id) {
-                VendorPayment::create([
-                    'user_id' => $vendor->id,
-                    'vendor_id' => $vendor->vendor_type_id, // vendor_type_id from users table
-                    'amount' => $vendorBoost->amount,
-                    'status' => 'paid'
-                ]);
-            }
-
-            DB::commit();
-
-            // Send emails (using queue for better reliability)
-            $this->sendBoostEmail($vendorBoost, $vendor->email, 'vendor', '(TEST MODE)');
-
-            // Email to admin
-                $adminEmail = env('Admin_Email');
-                if ($adminEmail) {
-                $this->sendBoostEmail($vendorBoost, $adminEmail, 'admin', '(TEST MODE)');
-            } else {
-                Log::warning('Admin email not configured (TEST MODE)', [
-                    'vendor_boost_id' => $vendorBoost->id
-                ]);
-            }
-
-            return response()->json([
-                'status' => true,
-                'message' => 'Boost activated successfully (TEST MODE - Payment verification skipped)',
-                'data' => $vendorBoost->load(['package', 'position', 'boostedProducts.product'])
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to activate boost',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return [
+            'id' => $boost->id,
+            'status' => $boost->status,
+            'package' => $boost->package ? [
+                'id' => $boost->package->id,
+                'name' => $boost->package->name,
+                'duration_days' => $boost->package->duration_days,
+            ] : null,
+            'position' => $boost->position ? [
+                'id' => $boost->position->id,
+                'name' => $boost->position->name,
+            ] : null,
+            'start_date' => $boost->start_date?->toIso8601String(),
+            'end_date' => $boost->end_date?->toIso8601String(),
+            'requested_at' => $boost->created_at?->toIso8601String(),
+            'note' => $boost->vendor_note,
+            'rejection_reason' => in_array($boost->approval_status, ['rejected', 'cancelled'], true) ? $boost->rejection_reason : null,
+            'products' => $boost->boostedProducts->map(fn ($item) => [
+                'id' => $item->product_id,
+                'name' => $item->product?->name,
+                'image_url' => $item->product?->productImages?->first()?->image_url,
+            ])->values(),
+        ];
     }
 }
-
