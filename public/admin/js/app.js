@@ -1,9 +1,57 @@
 $(function() {
 	"use strict";
-	new PerfectScrollbar(".app-container"),
-	new PerfectScrollbar(".header-message-list"),
-	new PerfectScrollbar(".header-notifications-list"),
+	// PerfectScrollbar throws when its element is missing, and none of these
+	// three exist in this admin. The throw used to abort this whole handler,
+	// so the sidebar toggle, mobile menu and dark-mode button never got bound.
+	[".app-container", ".header-message-list", ".header-notifications-list"].forEach(function(selector) {
+		if (document.querySelector(selector)) {
+			new PerfectScrollbar(selector);
+		}
+	});
 
+	// Collapsed sidebar: icons only, expands while hovered. The choice is
+	// remembered per browser so it survives page loads.
+	var SIDEBAR_KEY = "partsynch.sidebarCollapsed";
+
+	function setSidebarCollapsed(collapsed) {
+		var $wrapper = $(".wrapper");
+		$(".sidebar-wrapper").off(".collapse");
+		$wrapper.removeClass("sidebar-hovered").toggleClass("toggled", collapsed);
+		if (collapsed) {
+			$(".sidebar-wrapper").on("mouseenter.collapse", function() {
+				$wrapper.addClass("sidebar-hovered");
+			}).on("mouseleave.collapse", function() {
+				$wrapper.removeClass("sidebar-hovered");
+			});
+		}
+		try {
+			localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0");
+		} catch (e) {}
+	}
+
+	function isDesktop() {
+		return window.matchMedia("(min-width: 1025px)").matches;
+	}
+
+	try {
+		if (isDesktop() && localStorage.getItem(SIDEBAR_KEY) === "1") {
+			setSidebarCollapsed(true);
+		}
+	} catch (e) {}
+
+	// Desktop: the arrow in the sidebar header collapses/expands it.
+	// Mobile: the hamburger opens it; the arrow or the dark overlay closes it.
+	$(".sidebar-header .toggle-icon").on("click", function() {
+		if (isDesktop()) {
+			setSidebarCollapsed(!$(".wrapper").hasClass("toggled"));
+		} else {
+			$(".wrapper").removeClass("toggled");
+		}
+	});
+
+	$(".overlay.toggle-icon").on("click", function() {
+		$(".wrapper").removeClass("toggled");
+	});
 
 	    $(".mobile-search-icon").on("click", function() {
 			$(".search-bar").addClass("full-search-bar")
@@ -33,13 +81,6 @@ $(function() {
 		}), 
 
 		
-		$(".toggle-icon").click(function() {
-			$(".wrapper").hasClass("toggled") ? ($(".wrapper").removeClass("toggled"), $(".sidebar-wrapper").unbind("hover")) : ($(".wrapper").addClass("toggled"), $(".sidebar-wrapper").hover(function() {
-				$(".wrapper").addClass("sidebar-hovered")
-			}, function() {
-				$(".wrapper").removeClass("sidebar-hovered")
-			}))
-		}),
 		$(document).ready(function() {
 			$(window).on("scroll", function() {
 				$(this).scrollTop() > 300 ? $(".back-to-top").fadeIn() : $(".back-to-top").fadeOut()

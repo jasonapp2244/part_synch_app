@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\{
     EarningController,
     SettingsController,
     LegalPageController,
+    ProfileController,
     BoostPackageController,
     ReportController,
     ReviewController
@@ -123,5 +124,10 @@ Route::middleware('admin')->group(function () {
     // Legal & Support: privacy policy, terms, support and account-deletion pages
     Route::get('/legal-support', [LegalPageController::class, 'index'])->name('admin.legal');
     Route::post('/legal-support', [LegalPageController::class, 'update'])->name('admin.legal.update');
+
+    // The signed-in admin's own account: profile details and password
+    Route::get('/profile', [ProfileController::class, 'show'])->name('admin.profile');
+    Route::post('/profile', [ProfileController::class, 'update'])->name('admin.profile.update');
+    Route::post('/profile/password', [ProfileController::class, 'updatePassword'])->name('admin.profile.password');
 
 });

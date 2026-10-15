@@ -128,6 +128,32 @@
             </a>
         </li>
 
+        <li class="menu-label">Account</li>
+
+        <li>
+            <a href="{{ route('admin.profile') }}" class="{{ request()->routeIs('admin.profile') && request('tab') !== 'password' ? 'mm-active' : '' }}">
+                <div class="parent-icon"><i class='bx bx-user-circle'></i></div>
+                <div class="menu-title">My Profile</div>
+            </a>
+        </li>
+
+        <li>
+            <a href="{{ route('admin.profile', ['tab' => 'password']) }}" class="{{ request()->routeIs('admin.profile') && request('tab') === 'password' ? 'mm-active' : '' }}">
+                <div class="parent-icon"><i class='bx bx-lock-alt'></i></div>
+                <div class="menu-title">Change Password</div>
+            </a>
+        </li>
+
+        <li>
+            <a href="javascript:;" class="sidebar-logout" onclick="document.getElementById('sidebar-logout-form').submit()">
+                <div class="parent-icon"><i class='bx bx-log-out-circle'></i></div>
+                <div class="menu-title">Logout</div>
+            </a>
+            <form id="sidebar-logout-form" method="POST" action="{{ route('admin.logout') }}" class="d-none">
+                @csrf
+            </form>
+        </li>
+
     </ul>
     <!--end navigation-->
 </div>

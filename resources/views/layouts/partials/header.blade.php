@@ -37,6 +37,16 @@
                             <i class="bx bx-tachometer fs-5 me-2"></i><span>Dashboard</span>
                         </a>
                     </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center" href="{{ route('admin.profile') }}">
+                            <i class="bx bx-user-circle fs-5 me-2"></i><span>My Profile</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center" href="{{ route('admin.profile', ['tab' => 'password']) }}">
+                            <i class="bx bx-lock-alt fs-5 me-2"></i><span>Change Password</span>
+                        </a>
+                    </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <form method="POST" action="{{ route('admin.logout') }}">
