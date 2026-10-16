@@ -470,6 +470,15 @@ class ProductController extends Controller
                 ], 403);
             }
 
+            // BCR-31: order lines reference the product; deleting it would
+            // empty orders a customer has already placed.
+            if (OrderItem::where('product_id', $product->id)->exists()) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'This product has orders and cannot be deleted. Set it inactive instead.',
+                ], 409);
+            }
+
             $existingImages = ProductImage::where('product_id', $id)->get();
             foreach ($existingImages as $existingImage) {
                 $imagePath = $existingImage->name;

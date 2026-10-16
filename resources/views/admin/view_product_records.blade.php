@@ -26,6 +26,13 @@
                 </div>
             @endif
 
+            @if(session('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
             <div class="card radius-10 overflow-hidden">
                 <div class="card-header bg-gradient-orange p-3">
                     <div class="d-flex align-items-center">

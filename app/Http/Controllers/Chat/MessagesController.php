@@ -32,25 +32,30 @@ class MessagesController extends ChatifyMessagesController
     }
 
     /**
-     * Override: keep blocked users out of the contacts list.
+     * Fields a contact row may carry. Chatify selects users.* and hydrates the
+     * rows into ChMessage, so User::$hidden never applies and the password
+     * hash, OTP and reset tokens would otherwise be sent to the other party
+     * (BCR-35). These are the fields the app reads.
+     */
+    private const CONTACT_FIELDS = [
+        'id', 'first_name', 'last_name', 'business_name', 'profile_image', 'avatar', 'role_id',
+    ];
+
+    /**
+     * Override: expose only public contact fields and keep blocked users out
+     * of the contacts list.
      */
     public function getContacts(Request $request)
     {
-        $response = parent::getContacts($request);
+        $data = parent::getContacts($request)->getData(true);
         $blockedIds = UserBlock::idsFor(Auth::id());
+        $allowed = array_flip(self::CONTACT_FIELDS);
 
-        if (empty($blockedIds)) {
-            return $response;
-        }
-
-        $data = $response->getData(true);
-
-        if (isset($data['contacts']) && is_array($data['contacts'])) {
-            $data['contacts'] = array_values(array_filter(
-                $data['contacts'],
-                fn ($contact) => ! in_array($contact['id'] ?? null, $blockedIds)
-            ));
-        }
+        $contacts = is_array($data['contacts'] ?? null) ? $data['contacts'] : [];
+        $data['contacts'] = array_values(array_map(
+            fn ($contact) => array_intersect_key($contact, $allowed),
+            array_filter($contacts, fn ($contact) => ! in_array($contact['id'] ?? null, $blockedIds))
+        ));
 
         return Response::json($data, 200);
     }

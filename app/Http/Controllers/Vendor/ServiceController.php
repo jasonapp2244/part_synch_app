@@ -36,7 +36,7 @@ class ServiceController extends Controller
                 'status'           => ['nullable', Rule::in(['active', 'inactive'])],
             ]);
 
-            if ($request->product_id && !Product::where('id', $request->product_id)->exists()) {
+            if ($request->product_id && !$this->ownsProduct($request->product_id)) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Product not found!',
@@ -89,7 +89,7 @@ class ServiceController extends Controller
     {
         try {
             if ($id) {
-                $service = Service::find($id);
+                $service = $this->ownService($id);
                 if (!$service) {
                     return response()->json([
                         'status' => false,
@@ -102,7 +102,7 @@ class ServiceController extends Controller
                 ], 200);
             }
 
-            $services = Service::all();
+            $services = Service::where('user_id', Auth::id())->get();
             return response()->json([
                 'status' => true,
                 'data' => $services,
@@ -120,7 +120,7 @@ class ServiceController extends Controller
     public function updateService(Request $request, $id)
     {
         try {
-            $service = Service::find($id);
+            $service = $this->ownService($id);
 
             if (!$service) {
                 return response()->json([
@@ -144,6 +144,13 @@ class ServiceController extends Controller
                 ], 400);
             }
 
+
+            if ($request->product_id && !$this->ownsProduct($request->product_id)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Product not found!',
+                ], 400);
+            }
 
             $service->product_id = $request->product_id ?? $service->product_id;
             $service->service_types = $request->service_types ?? $service->service_types;
@@ -189,7 +196,7 @@ class ServiceController extends Controller
     public function deleteService($id)
     {
         try {
-            $service = Service::find($id);
+            $service = $this->ownService($id);
             if (!$service) {
                 return response()->json([
                     'status' => false,
@@ -211,5 +218,19 @@ class ServiceController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * A service the signed-in vendor owns, or null. An id alone must never be
+     * enough to read or change another vendor's service (BCR-18).
+     */
+    private function ownService($id): ?Service
+    {
+        return Service::where('id', $id)->where('user_id', Auth::id())->first();
+    }
+
+    private function ownsProduct($productId): bool
+    {
+        return Product::where('id', $productId)->where('user_id', Auth::id())->exists();
     }
 }

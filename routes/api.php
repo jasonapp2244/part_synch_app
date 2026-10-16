@@ -151,7 +151,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/show_product/{id?}', [VendorProductController::class, 'showProduct']);
         Route::post('/update_product/{id?}', [VendorProductController::class, 'updateProduct']);
         Route::delete('/delete_product/{id?}', [VendorProductController::class, 'deleteProduct']);
-        Route::get('/get_product_home_screen', [VendorProductController::class, 'get_product_home_screen']);
 
         // Service Management
         Route::post('/add_service', [VendorServiceController::class, 'addService']);
