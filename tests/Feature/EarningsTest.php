@@ -91,6 +91,21 @@ class EarningsTest extends TestCase
         $this->assertEquals(94, $earnings->json('data.top_products.0.total_revenue'));
     }
 
+    public function test_admin_status_change_reaches_the_customer_in_app(): void
+    {
+        $order = DB::table('orders')->where('order_number', 'ORD-completed')->first();
+
+        $this->actingAs($this->admin)
+            ->post("/order/{$order->id}/update-status", ['order_status' => 'delivered'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $order->user_id,
+            'order_id' => $order->id,
+            'email_body' => 'Your order ORD-completed is now delivered.',
+        ]);
+    }
+
     public function test_admin_revenue_leaves_cancelled_orders_out_and_counts_them_separately(): void
     {
         $this->actingAs($this->admin)->get('/dashboard')

@@ -48,8 +48,12 @@ class CartController extends Controller
             }
 
             return DB::transaction(function () use ($userId, $request, $product) {
+                // Active rows only: checkout leaves its rows behind as
+                // 'inactive', and picking one up again added the new quantity
+                // to the last order's (bought 2, added 1, sent an order for 3).
                 $cartItem = Cart::where('user_id', $userId)
                     ->where('product_id', $request->product_id)
+                    ->where('status', 'active')
                     ->lockForUpdate()
                     ->first();
 
@@ -249,8 +253,11 @@ class CartController extends Controller
             'cart_id' => 'required|exists:cart,id',
         ]);
 
+        // A checked-out row belongs to an order now; deleting it took the
+        // order's delivery address with it.
         $cartItem = Cart::where('id', $request->cart_id)
             ->where('user_id', auth()->id())
+            ->where('status', 'active')
             ->first();
 
         if (!$cartItem) {

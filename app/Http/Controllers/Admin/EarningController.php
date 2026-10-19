@@ -68,6 +68,7 @@ class EarningController extends Controller
         ]);
 
         $order = Order::findOrFail($id);
+        $changed = $order->order_status !== $request->order_status;
         $order->order_status = $request->order_status;
 
         if ($request->order_status === 'delivered') {
@@ -75,6 +76,11 @@ class EarningController extends Controller
         }
 
         $order->save();
+
+        // The vendor's changes reach the customer; the admin's did not.
+        if ($changed) {
+            $order->notifyCustomerOfStatus();
+        }
 
         return redirect()->route('order.details', $id)->with('success', 'Order status updated successfully.');
     }

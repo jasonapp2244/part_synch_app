@@ -2,12 +2,39 @@
 
 namespace App\Models;
 
+use App\Mail\ProductBackInStockMail;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class Product extends Model
 {
+    /**
+     * Email everyone who asked to hear when this product came back (checkout
+     * marks them 'notified' when it was out of stock) and clear their flag.
+     * Mail is best-effort: the restock itself has already been saved.
+     */
+    public function notifyBackInStock(): int
+    {
+        $waiting = Wishlist::where('product_id', $this->id)->where('status', 'notified')->get();
 
+        foreach ($waiting as $wishlist) {
+            $user = User::find($wishlist->user_id);
 
+            if ($user) {
+                try {
+                    Mail::to($user->email)->send(new ProductBackInStockMail($this, $user));
+                } catch (\Exception $e) {
+                    Log::error('Back-in-stock email failed', ['product_id' => $this->id, 'user_id' => $user->id, 'error' => $e->getMessage()]);
+                }
+            }
+
+            $wishlist->status = 'active';
+            $wishlist->save();
+        }
+
+        return $waiting->count();
+    }
 
     protected $table = 'products';
     protected $fillable = [

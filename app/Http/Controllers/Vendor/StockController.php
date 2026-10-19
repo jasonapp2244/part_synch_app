@@ -2,15 +2,10 @@
 
 namespace App\Http\Controllers\Vendor;
 
-use App\Models\User;
 use App\Models\Stock;
 use App\Models\Product;
-use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use App\Mail\ProductBackInStockMail;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class StockController extends Controller
 {
@@ -58,34 +53,11 @@ class StockController extends Controller
         $product->stock_quantity += $newStock;
         $product->save();
 
-        // Notify wishlist users
-        $wishlistUsers = Wishlist::where('product_id', $productId)
-            ->where('status', 'notified')
-            ->get();
-
-        if ($wishlistUsers->isEmpty()) {
+        if ($product->notifyBackInStock() === 0) {
             return response()->json([
                 'status' => true,
                 'message' => 'Stock updated successfully. No users to notify.',
             ]);
-        }
-
-        foreach ($wishlistUsers as $wishlist) {
-            $user = User::find($wishlist->user_id);
-
-            if ($user) {
-                // A mail server refusing the login used to fail the restock
-                // after the stock had already been saved.
-                try {
-                    Mail::to($user->email)->send(new ProductBackInStockMail($product, $user));
-                } catch (\Exception $e) {
-                    Log::error('Back-in-stock email failed', ['product_id' => $product->id, 'user_id' => $user->id, 'error' => $e->getMessage()]);
-                }
-            }
-
-            // Mark wishlist status as active
-            $wishlist->status = 'active';
-            $wishlist->save();
         }
 
         return response()->json([

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Vendor;
 
 use App\Models\User;
 use App\Models\Order;
-use App\Models\Notification;
 use Illuminate\Http\Request;
 use App\Mail\orderManagement;
 use Illuminate\Validation\Rule;
@@ -127,15 +126,7 @@ class OrderController extends Controller
                 return response()->json(['message' => 'Status not updated'], 500);
             }
 
-            // The customer had no in-app record of their order moving on;
-            // only the email, which they might never get.
-            Notification::create([
-                'user_id' => $order->user_id,
-                'order_id' => $order->id,
-                'email_subject' => 'Order Updated',
-                'email_body' => "Your order {$order->order_number} is now " . self::STATUS_LABELS[$order->order_status] . '.',
-                'status' => 'sent',
-            ]);
+            $order->notifyCustomerOfStatus();
 
             DB::commit();
         } catch (\Exception $e) {
@@ -164,13 +155,4 @@ class OrderController extends Controller
 
         return response()->json(['message' => 'Status updated']);
     }
-
-    private const STATUS_LABELS = [
-        'accept'       => 'accepted',
-        'cancel'       => 'cancelled',
-        'payment'      => 'paid',
-        'order_packed' => 'packed',
-        'shipping'     => 'on its way',
-        'completed'    => 'completed',
-    ];
 }

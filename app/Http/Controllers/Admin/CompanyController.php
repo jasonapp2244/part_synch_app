@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Category;
 use App\Models\SubCategory;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
 
 class CompanyController extends Controller
@@ -25,7 +26,7 @@ class CompanyController extends Controller
             'company_name' => 'required|string|max:200',
             'description' => 'nullable|string|max:500',
             'category_id' => 'required|exists:categories,id',
-            'sub_category_id' => 'required|exists:sub_categories,id',
+            'sub_category_id' => ['required', Rule::exists('sub_categories', 'id')->where('category_id', $request->category_id)],
             'company_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'status' => 'required|in:active,inactive',
         ]);
@@ -51,7 +52,7 @@ class CompanyController extends Controller
             'company_name' => 'required|string|max:200',
             'description' => 'nullable|string|max:500',
             'category_id' => 'required|exists:categories,id',
-            'sub_category_id' => 'required|exists:sub_categories,id',
+            'sub_category_id' => ['required', Rule::exists('sub_categories', 'id')->where('category_id', $request->category_id)],
             'company_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'status' => 'required|in:active,inactive',
         ]);

@@ -74,6 +74,24 @@ class AdminCatalogTest extends TestCase
         $this->assertDatabaseHas('companies', ['company_name' => 'Cummins', 'user_id' => $this->admin->id]);
     }
 
+    public function test_a_company_cannot_be_filed_under_another_categorys_sub_category(): void
+    {
+        // The form offered every sub-category whatever the category, and the
+        // server only checked that the sub-category existed.
+        $power = DB::table('categories')->insertGetId(['user_id' => $this->admin->id, 'name' => 'Power Generation']);
+        $hydraulics = DB::table('categories')->insertGetId(['user_id' => $this->admin->id, 'name' => 'Hydraulics']);
+        $pumps = DB::table('sub_categories')->insertGetId(['category_id' => $hydraulics, 'sub_category_name' => 'Pumps', 'status' => 'active']);
+
+        $this->actingAs($this->admin)->post('/company', [
+            'company_name' => 'Cummins',
+            'category_id' => $power,
+            'sub_category_id' => $pumps,
+            'status' => 'active',
+        ])->assertSessionHasErrors('sub_category_id');
+
+        $this->assertDatabaseMissing('companies', ['company_name' => 'Cummins']);
+    }
+
     public function test_product_images_are_rebased_onto_this_server(): void
     {
         // Uploads bake the uploading host into image_url; the order page

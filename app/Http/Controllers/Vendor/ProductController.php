@@ -341,8 +341,15 @@ class ProductController extends Controller
                     $stock->save();
                 }
 
+                $wasOut = $product->stock_quantity <= 0;
                 $product->stock_quantity += $newStock;
                 $product->save();
+
+                // The app restocks through this form, never `update-stock`, so
+                // customers waiting on an out-of-stock part were never told.
+                if ($wasOut && $product->stock_quantity > 0) {
+                    $product->notifyBackInStock();
+                }
             }
 
             $link = CompanyProductCategoryLinks::where('product_id', $product->id)
@@ -383,52 +390,50 @@ class ProductController extends Controller
             $link->save();
 
 
+            // New photos are added to the listing; a photo goes only when the
+            // app names it in `remove_images[]`. The upload used to be taken
+            // as the complete set, so adding one photo deleted every photo the
+            // listing already had, and a photo the vendor removed in the app
+            // was never removed here (device run 2026-10-20).
             $uploadedImages = [];
             $existingImages = ProductImage::where('product_id', $id)->get();
+
+            $removeNames = collect((array) $request->input('remove_images', []))
+                ->filter(fn ($url) => is_string($url) && $url !== '')
+                ->map(fn ($url) => basename(parse_url($url, PHP_URL_PATH) ?? ''))
+                ->filter()
+                ->all();
+
+            foreach ($existingImages as $existingImage) {
+                if (in_array(basename(parse_url($existingImage->image_url, PHP_URL_PATH) ?? ''), $removeNames, true)) {
+                    Storage::delete('product_images/' . basename($existingImage->image_url));
+                    $existingImage->delete();
+                }
+            }
 
             if ($request->hasFile('product_pic')) {
                 foreach ($request->file('product_pic') as $image) {
                     $imageHash = sha1_file($image->getRealPath());
+
+                    // The same picture again keeps the copy already stored. This
+                    // used to repoint that record at a file name that was never
+                    // written, so the image broke.
+                    if (ProductImage::where('product_id', $product->id)->where('hash', $imageHash)->exists()) {
+                        continue;
+                    }
+
                     $imageName = $imageHash . '_' . time() . "." . $image->getClientOriginalExtension();
                     $imagePath = 'product_images/' . $imageName;
 
-                    $existingImage = $existingImages->firstWhere(function ($existingImage) use ($imageHash) {
-                        return $existingImage->hash === $imageHash;
-                    });
-
-                    if ($existingImage) {
-                        $existingImage->name = $imageName;
-                        $existingImage->image_url = URL::to('storage/' . $imagePath);
-                        $existingImage->save();
-                        $uploadedImages[] = asset(Storage::url($imagePath));
-                    } else {
-                        $image->storeAs('product_images', $imageName);
-                        $productImage = new ProductImage();
-                        $productImage->user_id = Auth::id();
-                        $productImage->product_id = $product->id;
-                        $productImage->name = $imageName;
-                        $productImage->hash = $imageHash;
-                        $productImage->image_url =  URL::to('storage/' . $imagePath);
-                        // $productImage->image_url = Storage::url($imagePath);
-                        $productImage->save();
-                        $uploadedImages[] = asset(Storage::url($imagePath));
-                    }
-                }
-
-                foreach ($existingImages as $existingImage) {
-                    $shouldDelete = true;
-                    foreach ($request->file('product_pic') as $image) {
-                        $imageHash = sha1_file($image->getRealPath());
-                        if ($existingImage->hash === $imageHash) {
-                            $shouldDelete = false;
-                            break;
-                        }
-                    }
-
-                    if ($shouldDelete) {
-                        Storage::delete('product_images/' . basename($existingImage->image_url));
-                        $existingImage->delete();
-                    }
+                    $image->storeAs('product_images', $imageName);
+                    $productImage = new ProductImage();
+                    $productImage->user_id = Auth::id();
+                    $productImage->product_id = $product->id;
+                    $productImage->name = $imageName;
+                    $productImage->hash = $imageHash;
+                    $productImage->image_url =  URL::to('storage/' . $imagePath);
+                    $productImage->save();
+                    $uploadedImages[] = asset(Storage::url($imagePath));
                 }
             }
 

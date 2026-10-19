@@ -44,10 +44,35 @@ class ProductController extends Controller
         return $this->successResponse('Product details fetched successfully.', $product->makeHidden('user'));
     }
 
+    /**
+     * The filter's product category: one id, a comma list ("24,26") or an
+     * array, since one category name can stand for a row per company.
+     */
+    private static function categoryIds(Request $request): array
+    {
+        $raw = $request->input('com_pro_cat_id');
+        $ids = is_array($raw) ? $raw : explode(',', (string) $raw);
+
+        return array_values(array_unique(array_filter(array_map('intval', $ids))));
+    }
+
     public function getAllCompaniesProductCategory(Request $request)
     {
         try {
-            $categories = ProductCategory::all();
+            // Each company keeps its own copy of a product category, so the
+            // list read "Cylinders, Pistons, Cylinders, Pistons" and choosing
+            // one "Cylinders" reached only that copy's company. One entry per
+            // name now, carrying every id behind it in `ids` for the next step.
+            $categories = ProductCategory::all()
+                ->reject(fn ($category) => $category->status === 'inactive')
+                ->groupBy(fn ($category) => mb_strtolower(trim((string) $category->product_categories_name)))
+                ->map(function ($group) {
+                    $first = $group->first();
+                    $first->setAttribute('ids', $group->pluck('id')->values()->all());
+
+                    return $first;
+                })
+                ->values();
 
             if ($categories->isEmpty()) {
                 return response()->json([
@@ -74,9 +99,9 @@ class ProductController extends Controller
     public function getAllRelatedCompaniesProductCategory(Request $request)
     {
         try {
-            $com_pro_cat_id = $request->com_pro_cat_id;
+            $categoryIds = self::categoryIds($request);
 
-            if (!$com_pro_cat_id) {
+            if (!$categoryIds) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Product category ID (com_pro_cat_id) is required.',
@@ -84,7 +109,7 @@ class ProductController extends Controller
             }
 
             $links = CompanyProductCategoryLinks::with('company')
-                ->where('com_pro_cat_id', $com_pro_cat_id)
+                ->whereIn('com_pro_cat_id', $categoryIds)
                 ->where('is_deleted', 0) // optional: exclude soft deleted
                 ->get();
 
@@ -96,7 +121,8 @@ class ProductController extends Controller
                 ], 400);
             }
 
-            $companies = $links->pluck('company')->unique('id')->values();
+            // A link whose company is gone came through as a null entry.
+            $companies = $links->pluck('company')->filter()->unique('id')->values();
 
             return response()->json([
                 'status' => true,
@@ -115,20 +141,23 @@ class ProductController extends Controller
     public function getModalNumbersByCategoryAndCompany(Request $request)
     {
         try {
-            $com_pro_cat_id = $request->com_pro_cat_id;
+            $categoryIds = self::categoryIds($request);
             $company_id = $request->company_id;
 
-            if (!$com_pro_cat_id || !$company_id) {
+            if (!$categoryIds || !$company_id) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Both company_id and com_pro_cat_id are required.',
                 ], 400);
             }
 
-            $modalNumbers = CompanyProductCategoryLinks::where('com_pro_cat_id', $com_pro_cat_id)
+            $modalNumbers = CompanyProductCategoryLinks::whereIn('com_pro_cat_id', $categoryIds)
                 ->where('company_id', $company_id)
                 ->where('is_deleted', 0)
-                ->pluck('modal_number');
+                ->whereNotNull('modal_number')
+                ->pluck('modal_number')
+                ->unique()
+                ->values();
 
             if ($modalNumbers->isEmpty()) {
                 return response()->json([
@@ -156,10 +185,10 @@ class ProductController extends Controller
     {
         try {
             $company_id     = $request->company_id;
-            $com_pro_cat_id = $request->com_pro_cat_id;
+            $categoryIds    = self::categoryIds($request);
             $modal_number   = $request->modal_number;
 
-            if (!$company_id || !$com_pro_cat_id || !$modal_number) {
+            if (!$company_id || !$categoryIds || !$modal_number) {
                 return response()->json([
                     'status' => false,
                     'message' => 'company_id, com_pro_cat_id, and modal_number are required.'
@@ -167,7 +196,7 @@ class ProductController extends Controller
             }
 
             $productIDs = CompanyProductCategoryLinks::where('company_id', $company_id)
-                ->where('com_pro_cat_id', $com_pro_cat_id)
+                ->whereIn('com_pro_cat_id', $categoryIds)
                 ->where('modal_number', $modal_number)
                 ->where('is_deleted', 0)
                 ->pluck('product_id');

@@ -133,7 +133,7 @@
                             <select class="form-select" name="sub_category_id" required>
                                 <option value="">Select Sub Category</option>
                                 @foreach($subCategories as $sub)
-                                    <option value="{{ $sub->id }}">{{ $sub->sub_category_name }}</option>
+                                    <option value="{{ $sub->id }}" data-category="{{ $sub->category_id }}">{{ $sub->sub_category_name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -191,7 +191,7 @@
                             <label class="form-label">Sub Category <span class="text-danger">*</span></label>
                             <select class="form-select" name="sub_category_id" required>
                                 @foreach($subCategories as $sub)
-                                    <option value="{{ $sub->id }}" {{ $company->sub_category_id == $sub->id ? 'selected' : '' }}>{{ $sub->sub_category_name }}</option>
+                                    <option value="{{ $sub->id }}" data-category="{{ $sub->category_id }}" {{ $company->sub_category_id == $sub->id ? 'selected' : '' }}>{{ $sub->sub_category_name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -247,4 +247,31 @@
         </div>
     </div>
     @endforeach
+@endsection
+
+@section('scripts')
+<script>
+    // Every sub-category was offered whatever the category, so a company
+    // could be filed under a sub-category of a different category. Each form
+    // now offers only the chosen category's sub-categories.
+    document.querySelectorAll('select[name="category_id"]').forEach(function (categorySelect) {
+        var form = categorySelect.closest('form');
+        var subSelect = form && form.querySelector('select[name="sub_category_id"]');
+        if (!subSelect) return;
+
+        function filter() {
+            var category = categorySelect.value;
+            Array.prototype.forEach.call(subSelect.options, function (option) {
+                if (!option.dataset.category) return;
+                var match = option.dataset.category === category;
+                option.hidden = !match;
+                option.disabled = !match;
+                if (!match && option.selected) subSelect.value = '';
+            });
+        }
+
+        categorySelect.addEventListener('change', filter);
+        filter();
+    });
+</script>
 @endsection
