@@ -76,6 +76,7 @@ Route::middleware('throttle:auth')->group(function () {
     Route::post('/otp-verification', [AuthController::class, 'otpVerification']);
     Route::post('/signin', [AuthController::class, 'signin']);
     Route::post('/forgot_password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset_password_otp', [AuthController::class, 'resetPasswordWithCode']);
 });
 
 Route::get('/vendor_type', [VendorTypeController::class, 'vendorType']);

@@ -57,13 +57,12 @@
 <body>
 
     <div class="email-container">
-        <h2>New Password</h2>
-        {{-- <p>Dear <strong>{{name}}</strong>,</p> --}}
-        <p>You have requested to reset your password. Use the OTP code below to proceed:</p>
+        <h2>Reset your password</h2>
+        <p>Enter this code in the app to choose a new password. It expires in 15 minutes.</p>
 
-        <div class="otp-code" style="text-align: center">{{ $new_password }}</div>
+        <div class="otp-code" style="text-align: center">{{ $code }}</div>
 
-        <p>If you did not request this, please ignore this email.</p>
+        <p>If you did not ask for this, ignore this email. Your password has not been changed.</p>
 
         <div class="footer">
             <p>Best Regards,<br>Part Synch</p>

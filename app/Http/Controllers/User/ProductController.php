@@ -23,11 +23,25 @@ class ProductController extends Controller
             return $this->errorResponse('Product ID is required.', [], 400);
         }
 
-        $product = Product::with('productImages')->find($id);
+        $product = Product::with(['productImages', 'user:id,first_name,last_name,business_name'])->find($id);
 
-        return is_null($product)
-            ? $this->errorResponse('No product record found.', [], code: 400)
-            : $this->successResponse('Product details fetched successfully.', $product);
+        if (is_null($product)) {
+            return $this->errorResponse('No product record found.', [], code: 400);
+        }
+
+        // Who sells it, by name only: the app titles the chat thread and the
+        // report sheet with it. Without it both fell back to the product name
+        // ("Say hello to <part>"). No contact details leave the server here.
+        $seller = $product->user;
+        $product->setRelation('user', null);
+        $product->setAttribute('seller', $seller ? [
+            'id' => $seller->id,
+            'name' => trim((string) $seller->business_name) !== ''
+                ? $seller->business_name
+                : trim($seller->first_name . ' ' . $seller->last_name),
+        ] : null);
+
+        return $this->successResponse('Product details fetched successfully.', $product->makeHidden('user'));
     }
 
     public function getAllCompaniesProductCategory(Request $request)

@@ -157,7 +157,7 @@
                                     <span class="font-13 fw-bold">{{ $paymentOrders }}</span>
                                 </div>
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span class="font-13"><i class="bx bxs-circle me-1" style="color:#42e695"></i>Delivered</span>
+                                    <span class="font-13"><i class="bx bxs-circle me-1" style="color:#42e695"></i>Completed</span>
                                     <span class="font-13 fw-bold">{{ $deliveredOrders }}</span>
                                 </div>
                                 <div class="d-flex justify-content-between">
@@ -231,7 +231,7 @@
                                 <div class="widgets-icons rounded-circle bg-light-primary text-primary"><i class='bx bx-check-double'></i></div>
                                 <div class="ms-3">
                                     <h6 class="mb-0">{{ $deliveredOrders }}</h6>
-                                    <p class="mb-0 font-13 text-muted">Delivered</p>
+                                    <p class="mb-0 font-13 text-muted">Completed</p>
                                 </div>
                             </div>
                         </div>
@@ -274,13 +274,13 @@
                                             <td>{{ $order->orderItems->count() }} item(s)</td>
                                             <td>${{ number_format($order->orderItems->sum('total_price'), 2) }}</td>
                                             <td>
-                                                @if($order->order_status === 'delivered')
-                                                    <span class="badge bg-gradient-quepal text-white shadow-sm w-100 rounded-pill">Delivered</span>
+                                                @if(in_array($order->order_status, ['completed', 'delivered'], true))
+                                                    <span class="badge bg-gradient-quepal text-white shadow-sm w-100 rounded-pill">{{ ucfirst($order->order_status) }}</span>
                                                 @elseif($order->order_status === 'pending')
                                                     <span class="badge bg-gradient-blooker text-white shadow-sm w-100 rounded-pill">Pending</span>
                                                 @elseif($order->order_status === 'payment')
                                                     <span class="badge bg-gradient-blues text-white shadow-sm w-100 rounded-pill">Payment</span>
-                                                @elseif($order->order_status === 'cancelled')
+                                                @elseif($order->order_status === 'cancel')
                                                     <span class="badge bg-gradient-bloody text-white shadow-sm w-100 rounded-pill">Cancelled</span>
                                                 @else
                                                     <span class="badge bg-secondary text-white shadow-sm w-100 rounded-pill">{{ ucfirst($order->order_status) }}</span>
@@ -392,7 +392,7 @@
         new Chart(statusCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Pending', 'Payment', 'Delivered', 'Cancelled'],
+                labels: ['Pending', 'Payment', 'Completed', 'Cancelled'],
                 datasets: [{
                     data: [{{ $pendingOrders }}, {{ $paymentOrders }}, {{ $deliveredOrders }}, {{ $cancelledOrders }}],
                     backgroundColor: ['#ffdf40', '#56ccf2', '#42e695', '#f54ea2'],

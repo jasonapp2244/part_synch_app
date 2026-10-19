@@ -8,6 +8,7 @@ use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\WishlistNotificationMail;
 
@@ -63,10 +64,7 @@ class WishlistController extends Controller
                 $data['vendor_name'] = $product->user->first_name ?? '';
                 $data['product_url'] = route('product.details', $product->id);
 
-                Mail::to($user->email)->send(new WishlistNotificationMail($data));
-                if (!empty($product->user->email)) {
-                    Mail::to($product->user->email)->send(new WishlistNotificationMail($data));
-                }
+                $mailTo = [$user->email, $product->user->email ?? null];
             }
 
             // Prepare email data for vendor wishlist
@@ -80,8 +78,7 @@ class WishlistController extends Controller
                 $data['vendor_logo'] = $vendor->profile_image ?? 'https://via.placeholder.com/200';
                 $data['vendor_url'] = route('vendor.store', $vendor->id);
 
-                Mail::to($user->email)->send(new WishlistNotificationMail($data));
-                Mail::to($vendor->email)->send(new WishlistNotificationMail($data));
+                $mailTo = [$user->email, $vendor->email];
             }
 
             $wishlist = Wishlist::create([
@@ -93,16 +90,28 @@ class WishlistController extends Controller
                 'process_status' => 'inactive',
             ]);
 
+            // Saved first, mailed second: a mail server refusing the login
+            // used to fail the save with a 500.
+            foreach (array_filter($mailTo ?? []) as $address) {
+                try {
+                    Mail::to($address)->send(new WishlistNotificationMail($data));
+                } catch (\Exception $e) {
+                    Log::error('Wishlist email failed', ['wishlist_id' => $wishlist->id, 'error' => $e->getMessage()]);
+                }
+            }
+
             return response()->json([
                 'status' => true,
-                'message' => 'Added to wishlist successfully. Notifications sent.',
+                'message' => 'Added to wishlist successfully.',
                 'data' => $wishlist
             ], 201);
         } catch (\Exception $e) {
+            // The raw exception text (SQL, SMTP replies) went to the app.
+            Log::error('Wishlist save failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to save wishlist.',
-                'error' => $e->getMessage()
             ], 500);
         }
     }

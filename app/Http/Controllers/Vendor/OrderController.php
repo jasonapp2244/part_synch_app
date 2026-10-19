@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Vendor;
 
 use App\Models\User;
 use App\Models\Order;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use App\Mail\orderManagement;
 use Illuminate\Validation\Rule;
@@ -126,22 +127,50 @@ class OrderController extends Controller
                 return response()->json(['message' => 'Status not updated'], 500);
             }
 
-            $user = User::find($order->user_id);
-            $vendor = User::find($order->vendor_id);
-            // Send mails
-            Mail::to($user->email)->send(new OrderManagement($order, $user, $vendor, 'user'));
-            Mail::to($vendor->email)->send(new OrderManagement($order, $user, $vendor, 'vendor'));
+            // The customer had no in-app record of their order moving on;
+            // only the email, which they might never get.
+            Notification::create([
+                'user_id' => $order->user_id,
+                'order_id' => $order->id,
+                'email_subject' => 'Order Updated',
+                'email_body' => "Your order {$order->order_number} is now " . self::STATUS_LABELS[$order->order_status] . '.',
+                'status' => 'sent',
+            ]);
 
-            // If all is good, commit changes
             DB::commit();
-            return response()->json(['message' => 'Status updated and notifications sent']);
         } catch (\Exception $e) {
             DB::rollBack();
 
             // Log the error for debugging
             Log::error('Order Status Update Failed: ' . $e->getMessage());
 
-            return response()->json(['message' => 'Something went wrong. Email or update failed.'], 500);
+            return response()->json(['message' => 'Something went wrong. The status was not changed.'], 500);
         }
+
+        // Mail goes out after the commit: a mail server refusing the login
+        // used to roll the status change back and fail the request.
+        $user = User::find($order->user_id);
+        $vendor = User::find($order->vendor_id);
+        foreach (['user' => $user, 'vendor' => $vendor] as $role => $recipient) {
+            if (!$recipient?->email) {
+                continue;
+            }
+            try {
+                Mail::to($recipient->email)->send(new OrderManagement($order, $user, $vendor, $role));
+            } catch (\Exception $e) {
+                Log::error("Order status email to {$role} failed", ['order_id' => $order->id, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return response()->json(['message' => 'Status updated']);
     }
+
+    private const STATUS_LABELS = [
+        'accept'       => 'accepted',
+        'cancel'       => 'cancelled',
+        'payment'      => 'paid',
+        'order_packed' => 'packed',
+        'shipping'     => 'on its way',
+        'completed'    => 'completed',
+    ];
 }

@@ -32,6 +32,9 @@
                         <div>
                             <h6 class="mb-0 text-white"><i class="bx bx-group me-2"></i>User Records</h6>
                         </div>
+                        <div class="ms-auto">
+                            @include('admin.partials.export_buttons', ['list' => 'users', 'onDark' => true])
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">

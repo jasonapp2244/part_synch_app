@@ -1,4 +1,5 @@
 @extends('layouts.admin')
+@section('title', 'Order Details')
 
 @section('content')
     <div class="page-wrapper">
@@ -14,7 +15,10 @@
                         </ol>
                     </nav>
                 </div>
-                <div class="ms-auto">
+                <div class="ms-auto d-flex gap-2">
+                    <a href="{{ route('order.invoice', $order->id) }}" class="btn btn-danger">
+                        <i class="bx bxs-file-pdf"></i> Download Invoice
+                    </a>
                     <a href="{{ route('earning.records') }}" class="btn btn-secondary">
                         <i class="bx bx-arrow-back"></i> Back to Orders
                     </a>
@@ -71,7 +75,7 @@
                                                 @if($item->product)
                                                     {{ $item->product->name }}
                                                     @if($item->product->productImages && $item->product->productImages->first())
-                                                        <br><img src="{{ asset('storage/' . $item->product->productImages->first()->image_url) }}" width="50" class="rounded mt-1">
+                                                        <br><img src="{{ $item->product->productImages->first()->url() }}" width="50" class="rounded mt-1" onerror="this.remove()">
                                                     @endif
                                                 @else
                                                     <span class="text-muted">Product deleted</span>
@@ -86,23 +90,29 @@
                                     <tfoot>
                                         <tr>
                                             <td colspan="4" class="text-end"><strong>Subtotal</strong></td>
-                                            <td><strong>${{ number_format($order->orderItems->sum('total_price'), 2) }}</strong></td>
+                                            <td><strong>${{ number_format($totals['subtotal'], 2) }}</strong></td>
                                         </tr>
-                                        @if($order->shipping_charges > 0)
+                                        @if($totals['shipping'] > 0)
                                         <tr>
                                             <td colspan="4" class="text-end">Shipping</td>
-                                            <td>${{ number_format($order->shipping_charges, 2) }}</td>
+                                            <td>${{ number_format($totals['shipping'], 2) }}</td>
                                         </tr>
                                         @endif
-                                        @if($order->discount > 0)
+                                        @if($totals['discount'] > 0)
                                         <tr>
                                             <td colspan="4" class="text-end">Discount</td>
-                                            <td>-${{ number_format($order->discount, 2) }}</td>
+                                            <td>-${{ number_format($totals['discount'], 2) }}</td>
+                                        </tr>
+                                        @endif
+                                        @if($totals['tax'] > 0)
+                                        <tr>
+                                            <td colspan="4" class="text-end">Tax</td>
+                                            <td>${{ number_format($totals['tax'], 2) }}</td>
                                         </tr>
                                         @endif
                                         <tr>
                                             <td colspan="4" class="text-end"><strong>Grand Total</strong></td>
-                                            <td><strong>${{ number_format($order->orderItems->sum('total_price') + ($order->shipping_charges ?? 0) - ($order->discount ?? 0), 2) }}</strong></td>
+                                            <td><strong>${{ number_format($totals['grand_total'], 2) }}</strong></td>
                                         </tr>
                                     </tfoot>
                                 </table>

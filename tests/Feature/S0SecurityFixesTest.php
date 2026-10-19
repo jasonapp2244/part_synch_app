@@ -217,6 +217,22 @@ class S0SecurityFixesTest extends TestCase
         $this->assertDatabaseHas('services', ['id' => $id, 'product_id' => null]);
     }
 
+    public function test_vendors_can_each_add_standalone_services(): void
+    {
+        // A service with no product used to collide with every other vendor's
+        // product-less service ("This Product service already exists!").
+        $this->actingAs($this->user(2), 'sanctum')
+            ->postJson('/api/vendor/add_service', ['title' => 'Inspection'])->assertStatus(201);
+
+        $second = $this->user(2);
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($second, 'sanctum');
+        $this->postJson('/api/vendor/add_service', ['title' => 'Fuel system service'])->assertStatus(201);
+        $this->postJson('/api/vendor/add_service', ['title' => 'Annual check'])->assertStatus(201);
+
+        $this->assertSame(2, \App\Models\Service::where('user_id', $second->id)->count());
+    }
+
     // ── BCR-31 ────────────────────────────────────────────────────────────
 
     public function test_vendor_cannot_delete_a_product_that_has_orders(): void

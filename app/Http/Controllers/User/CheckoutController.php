@@ -250,8 +250,7 @@ class CheckoutController extends Controller
                         'order_id' => $order->id,
                         'product_id' => $cartItem->product_id,
                         'quantity' => $cartItem->quantity,
-                        'price' => $cartItem->price,
-                        'total_price' => $cartItem->price * $cartItem->quantity,
+                        ...$cartItem->orderItemMoney(),
                         'discount' => 0,
                         'tax' => 0,
                         'order_status' => 'pending',
@@ -395,8 +394,8 @@ class CheckoutController extends Controller
                 $itemsWithoutAddress++;
             }
 
-            // Calculate item total
-            $itemTotal = $cart->price * $cart->quantity;
+            // `cart.price` already is the line total (BCR-14).
+            $itemTotal = $cart->lineTotal();
             $totalPrice += $itemTotal;
 
             // Get vendor information
@@ -413,8 +412,9 @@ class CheckoutController extends Controller
                     return $img->image_url;
                 })->toArray(),
                 'quantity' => $cart->quantity,
-                'unit_price' => $cart->price,
+                'unit_price' => $cart->unitPrice(),
                 'total_price' => $itemTotal,
+                'line_total' => $itemTotal,
                 'company_name' => optional($product->company)->company_name,
                 'company_id' => optional($product->company)->id,
                 'vendor_id' => $vendor->id ?? null,
@@ -523,7 +523,8 @@ class CheckoutController extends Controller
             'user_id' => $userId,
             'product_id' => $product->id,
             'quantity' => $quantity,
-            'price' => $product->price,
+            // Line total, like every other cart row (BCR-14/BCR-15).
+            'price' => round($quantity * (float) $product->price, 2),
             'status' => 'active',
         ]);
 

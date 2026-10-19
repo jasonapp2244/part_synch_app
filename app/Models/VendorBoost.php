@@ -108,4 +108,31 @@ class VendorBoost extends Model
             ->where('payment_status', 'success')
             ->where('is_active', true);
     }
+
+    /**
+     * The admin "Live & scheduled" tab: paid boosts that have not ended yet.
+     */
+    public function scopeCurrent(Builder $query): Builder
+    {
+        return $query->approvedAndPaid()
+            ->where('end_date', '>', now())
+            ->orderBy('start_date');
+    }
+
+    /**
+     * The admin "History" tab: rejected, cancelled, and approved boosts that
+     * have ended or been switched off.
+     */
+    public function scopeHistory(Builder $query): Builder
+    {
+        return $query->where(function ($q) {
+            $q->whereIn('approval_status', ['rejected', 'cancelled'])
+                ->orWhere(function ($q) {
+                    $q->where('approval_status', 'approved')
+                        ->where(fn ($q) => $q->where('is_active', false)->orWhere('end_date', '<=', now()));
+                });
+        })
+            ->latest('updated_at')
+            ->limit(200);
+    }
 }

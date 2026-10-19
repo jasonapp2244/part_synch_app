@@ -46,6 +46,9 @@
                         <div>
                             <h6 class="mb-0 text-white"><i class="bx bx-subdirectory-right me-2"></i>Sub Category Records</h6>
                         </div>
+                        <div class="ms-auto">
+                            @include('admin.partials.export_buttons', ['list' => 'sub-categories', 'onDark' => true])
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">

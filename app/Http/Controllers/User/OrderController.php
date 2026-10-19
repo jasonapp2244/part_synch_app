@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use App\Mail\OrderPlacedMail;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class OrderController extends Controller
@@ -86,8 +87,7 @@ class OrderController extends Controller
                 // $orderItem->vendor_id = $vendorId;
                 $orderItem->product_id = $cartItem->product_id;
                 $orderItem->quantity = $cartItem->quantity;
-                $orderItem->price = $cartItem->price;
-                $orderItem->total_price = $cartItem->quantity * $cartItem->price;
+                ['price' => $orderItem->price, 'total_price' => $orderItem->total_price] = $cartItem->orderItemMoney();
                 $orderItem->discount = 0;
                 $orderItem->tax = 0;
                 $orderItem->order_status = 'pending';
@@ -143,11 +143,18 @@ class OrderController extends Controller
             // dd($userRecord->toArray());
             // $admin_email = env('Admin_Email');
             // Send emails
-            Mail::to($userRecord->email)->send(new OrderPlacedMail($order, $orderItems, $items, $userRecord, $vendorRecord, $completeAddress, 'user'));
-            Mail::to($vendorRecord->email)->send(new OrderPlacedMail($order, $orderItems, $items, $userRecord, $vendorRecord, $completeAddress, 'vendor'));
+            // The order is already saved; a failed email must not turn that
+            // into an error the customer retries (and pays for) twice.
+            foreach (['user' => $userRecord, 'vendor' => $vendorRecord] as $role => $recipient) {
+                try {
+                    Mail::to($recipient->email)->send(new OrderPlacedMail($order, $orderItems, $items, $userRecord, $vendorRecord, $completeAddress, $role));
+                } catch (\Exception $e) {
+                    Log::error("Order placed email to {$role} failed", ['order_id' => $order->id, 'error' => $e->getMessage()]);
+                }
+            }
         }
 
-        return response()->json(['message' => 'Orders placed and emails sent successfully.']);
+        return response()->json(['message' => 'Orders placed successfully.']);
     }
 
     public function orderHistory(Request $request)
@@ -174,6 +181,7 @@ class OrderController extends Controller
                         'quantity' => $item->quantity,
                         'price' => $item->price,
                         'total_price' => $item->total_price,
+                        'line_total' => $item->total_price,
                         'image' => $item->product?->productImages?->first()?->image_url,
                     ];
                 }),
@@ -183,6 +191,8 @@ class OrderController extends Controller
                     'city' => $order->deliveryAddress->city,
                     'state' => $order->deliveryAddress->state,
                     'country' => $order->deliveryAddress->country,
+                    'postal_code' => $order->deliveryAddress->postal_code,
+                    'phone_number' => $order->deliveryAddress->phone_number,
                 ] : null,
             ];
         });

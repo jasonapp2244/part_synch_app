@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>::</title>
+    <title>Welcome to {{ config('app.name') }}</title>
     <style>
         body {
             font-family: Arial, sans-serif;

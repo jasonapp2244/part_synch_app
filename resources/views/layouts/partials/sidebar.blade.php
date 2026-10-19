@@ -22,7 +22,11 @@
         <li>
             <a href="{{ route('vendor.records') }}" class="{{ request()->routeIs('vendor.records') ? 'mm-active' : '' }}">
                 <div class="parent-icon"><i class='bx bx-store-alt'></i></div>
-                <div class="menu-title">Vendors</div>
+                <div class="menu-title">Vendors
+                    @if(($pendingVendorCount ?? 0) > 0)
+                        <span class="badge bg-warning text-dark ms-1">{{ $pendingVendorCount }}</span>
+                    @endif
+                </div>
             </a>
         </li>
 
@@ -60,6 +64,13 @@
             <a href="{{ route('company.records') }}" class="{{ request()->routeIs('company.records') ? 'mm-active' : '' }}">
                 <div class="parent-icon"><i class='bx bx-buildings'></i></div>
                 <div class="menu-title">Companies</div>
+            </a>
+        </li>
+
+        <li>
+            <a href="{{ route('product.category.records') }}" class="{{ request()->routeIs('product.category.records') ? 'mm-active' : '' }}">
+                <div class="parent-icon"><i class='bx bx-purchase-tag'></i></div>
+                <div class="menu-title">Product Categories</div>
             </a>
         </li>
 

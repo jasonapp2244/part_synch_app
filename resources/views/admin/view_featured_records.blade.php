@@ -32,6 +32,9 @@
                         <div>
                             <h6 class="mb-0 text-white"><i class="bx bx-star me-2"></i>Featured Products</h6>
                         </div>
+                        <div class="ms-auto">
+                            @include('admin.partials.export_buttons', ['list' => 'featured', 'onDark' => true])
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">

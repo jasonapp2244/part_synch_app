@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Mail\OtpMail;
 use Illuminate\Http\Request;
 use App\Mail\ForgotPasswordMail;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
@@ -277,11 +278,19 @@ class AuthController extends Controller
                     'error'  => 'Invalid Email or Password',
                 ], 400);
             }
-            if ($user) {
-                $user->status    = 'active';
-                $user->web_token = $request->web_token;
-                $user->save();
+            // `status` is the admin's block switch (and account deletion sets
+            // it too). Signing in used to write 'active' back, so a blocked
+            // user unblocked themselves by logging in.
+            if ($user->status !== 'active') {
+                return response()->json([
+                    'status' => false,
+                    'data'   => [],
+                    'error'  => 'Your account has been blocked. Please contact support.',
+                ], 403);
             }
+
+            $user->web_token = $request->web_token;
+            $user->save();
 
             $token = $user->createToken('API Token')->plainTextToken;
 
@@ -305,54 +314,102 @@ class AuthController extends Controller
     /**
      * Forgot Password Users.
      */
+    /**
+     * Step 1 of a password reset: email a 6-digit code (BCR-1).
+     *
+     * This used to generate `<name><4 digits>`, write it over the password and
+     * email it, so anyone who knew an address could lock its owner out with
+     * one request. Now nothing changes until the code comes back through
+     * resetPasswordWithCode(). The answer is the same whether or not the
+     * address has an account, so it cannot be used to find out who does.
+     */
     public function forgotPassword(Request $request)
     {
-        try {
+        $request->validate(['email' => 'required|email']);
 
-            $request->validate([
-                'email' => 'required|email|exists:users,email',
-            ]);
+        $user = User::where('email', $request->email)->first();
 
+        if ($user) {
+            $code = (string) random_int(100000, 999999);
 
-            $user = User::where('email', $request->email)->first();
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $user->email],
+                ['token' => Hash::make($code), 'created_at' => now()]
+            );
+            Cache::forget(self::resetAttemptsKey($user->email));
 
-
-            if (! $user) {
-                return response()->json([
-                    'status'  => false,
-                    'message' => 'User not found',
-                ], 400);
+            try {
+                Mail::to($user->email)->send(new ForgotPasswordMail($user, $code));
+            } catch (\Throwable $e) {
+                Log::error('Password reset email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
             }
-
-            // Ensure business_name and first_name are not null
-            $nameForOTP = ! empty($user->business_name) ? $user->business_name : ($user->first_name ?? 'User');
-
-            // Generate OTP
-            // $new_password = $nameForOTP . rand(1000, 9999);
-            // $nameForOTP = str_replace(' ', '_', $nameForOTP);
-            // $new_password = $nameForOTP . rand(1000, 9999);
-
-            $nameForOTP   = strtolower(str_replace(' ', '', $nameForOTP));
-            $new_password = $nameForOTP . rand(1000, 9999);
-
-
-            $user->password = Hash::make($new_password);
-            $user->save();
-
-
-            Mail::to($user->email)->send(new ForgotPasswordMail($user, $new_password));
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'New password sent successfully to your email.',
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Something went wrong',
-                'error'   => $e->getMessage(),
-            ], 500);
         }
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'If an account exists for that email, we have sent it a 6-digit code. It expires in '
+                . self::RESET_CODE_MINUTES . ' minutes.',
+        ]);
+    }
+
+    /**
+     * Step 2: the code from the email plus the new password. A code lasts
+     * RESET_CODE_MINUTES and dies after RESET_CODE_ATTEMPTS wrong guesses;
+     * success signs the account out everywhere.
+     */
+    public function resetPasswordWithCode(Request $request)
+    {
+        $request->validate([
+            'email'    => 'required|email',
+            'otp'      => 'required|digits:6',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $invalid = response()->json([
+            'status'  => false,
+            'message' => 'This code is wrong or has expired. Request a new one and try again.',
+        ], 422);
+
+        $row = DB::table('password_reset_tokens')->where('email', $request->email)->first();
+        $attemptsKey = self::resetAttemptsKey($request->email);
+
+        if (! $row
+            || now()->subMinutes(self::RESET_CODE_MINUTES)->gt($row->created_at)
+            || Cache::get($attemptsKey, 0) >= self::RESET_CODE_ATTEMPTS) {
+            return $invalid;
+        }
+
+        if (! Hash::check($request->otp, $row->token)) {
+            Cache::put($attemptsKey, Cache::get($attemptsKey, 0) + 1, now()->addMinutes(self::RESET_CODE_MINUTES));
+
+            return $invalid;
+        }
+
+        $user = User::where('email', $request->email)->first();
+        if (! $user) {
+            return $invalid;
+        }
+
+        $user->password = Hash::make($request->password);
+        $user->save();
+        $user->tokens()->delete();
+
+        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+        Cache::forget($attemptsKey);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Your password has been changed. Sign in with the new one.',
+        ]);
+    }
+
+    private const RESET_CODE_MINUTES = 15;
+
+    private const RESET_CODE_ATTEMPTS = 5;
+
+    private static function resetAttemptsKey(string $email): string
+    {
+        return 'password-reset-attempts:' . sha1(strtolower($email));
     }
 
     public function resetPassword(Request $request)

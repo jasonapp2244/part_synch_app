@@ -1,4 +1,5 @@
 @extends('layouts.admin')
+@section('title', 'Boost Packages')
 
 @section('content')
     <div class="page-wrapper">
@@ -35,7 +36,10 @@
             @endif
 
             <!-- Boost Packages -->
-            <h6 class="mb-0 text-uppercase">Boost Packages</h6>
+            <div class="d-flex align-items-center">
+                <h6 class="mb-0 text-uppercase">Boost Packages</h6>
+                @include('admin.partials.export_buttons', ['list' => 'boost-packages', 'class' => 'ms-auto'])
+            </div>
             <hr />
             <div class="card mb-4">
                 <div class="card-body">

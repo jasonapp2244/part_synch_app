@@ -18,7 +18,7 @@ class DashboardController extends Controller
     public function dashboard()
     {
         $totalOrders = Order::count();
-        $totalRevenue = OrderItem::sum('total_price');
+        $totalRevenue = OrderItem::earned()->sum('total_price');
         $totalVendors = User::where('role_id', 2)->count();
         $activeVendors = User::where('role_id', 2)->where('status', 'active')->count();
         $totalCustomers = User::where('role_id', 3)->count();
@@ -30,16 +30,19 @@ class DashboardController extends Controller
         // Order status breakdown for pie chart
         $pendingOrders = Order::where('order_status', 'pending')->count();
         $paymentOrders = Order::where('order_status', 'payment')->count();
-        $deliveredOrders = Order::where('order_status', 'delivered')->count();
-        $cancelledOrders = Order::where('order_status', 'cancelled')->count();
+        $deliveredOrders = Order::whereIn('order_status', ['completed', 'delivered'])->count();
+        $cancelledOrders = Order::where('order_status', 'cancel')->count();
 
         // Monthly revenue for bar chart (last 6 months)
-        $monthlyRevenue = OrderItem::select(
+        $monthlyRevenue = OrderItem::earned()
+            ->select(
+                DB::raw('YEAR(created_at) as year'),
                 DB::raw('MONTH(created_at) as month'),
                 DB::raw('SUM(total_price) as revenue')
             )
             ->where('created_at', '>=', now()->subMonths(6))
-            ->groupBy(DB::raw('MONTH(created_at)'))
+            ->groupBy(DB::raw('YEAR(created_at)'), DB::raw('MONTH(created_at)'))
+            ->orderBy('year')
             ->orderBy('month')
             ->get();
 

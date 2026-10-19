@@ -31,7 +31,7 @@ class ReportController extends Controller
             ->each(function ($report) {
                 // Resolved lazily so a report whose target was deleted still
                 // renders instead of blowing up the page.
-                $report->subject_label = $this->describe($report);
+                $report->subject_label = $report->subjectLabel();
             });
 
         $counts = [
@@ -94,22 +94,5 @@ class ReportController extends Controller
         ]);
 
         return back()->with('success', 'Content removed and report marked as actioned.');
-    }
-
-    private function describe(Report $report): string
-    {
-        $subject = $report->subject();
-
-        if (! $subject) {
-            return 'Deleted ' . $report->reportable_type;
-        }
-
-        return match ($report->reportable_type) {
-            'user' => trim($subject->first_name . ' ' . $subject->last_name) ?: $subject->email,
-            'product' => $subject->name ?? 'Product #' . $report->reportable_id,
-            'review' => \Illuminate\Support\Str::limit($subject->review_text ?? '', 80),
-            'message' => \Illuminate\Support\Str::limit($subject->body ?? '(attachment)', 80),
-            default => '—',
-        };
     }
 }

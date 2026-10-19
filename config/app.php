@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Part Synch'),
 
     'admin_email' => env('Admin_Email', 'Laravel'),
 

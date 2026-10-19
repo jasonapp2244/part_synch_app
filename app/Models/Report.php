@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Report extends Model
 {
@@ -56,6 +57,27 @@ class Report extends Model
             'message' => ChMessage::find($this->reportable_id),
             'review' => Review::find($this->reportable_id),
             default => null,
+        };
+    }
+
+    /**
+     * One-line description of the reported record for the admin list and
+     * its exports.
+     */
+    public function subjectLabel(): string
+    {
+        $subject = $this->subject();
+
+        if (! $subject) {
+            return 'Deleted ' . $this->reportable_type;
+        }
+
+        return match ($this->reportable_type) {
+            'user' => trim($subject->first_name . ' ' . $subject->last_name) ?: $subject->email,
+            'product' => $subject->name ?? 'Product #' . $this->reportable_id,
+            'review' => Str::limit($subject->review_text ?? '', 80),
+            'message' => Str::limit($subject->body ?? '(attachment)', 80),
+            default => '—',
         };
     }
 }

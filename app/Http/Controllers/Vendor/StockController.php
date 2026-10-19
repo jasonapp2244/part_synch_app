@@ -9,6 +9,7 @@ use App\Models\Wishlist;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Mail\ProductBackInStockMail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class StockController extends Controller
@@ -73,10 +74,13 @@ class StockController extends Controller
             $user = User::find($wishlist->user_id);
 
             if ($user) {
-                // Queue the email
-                Mail::to($user->email)->send(new ProductBackInStockMail($product, $user));
-
-                // Mail::to($user->email)->queue(new ProductBackInStockMail($product, $user));
+                // A mail server refusing the login used to fail the restock
+                // after the stock had already been saved.
+                try {
+                    Mail::to($user->email)->send(new ProductBackInStockMail($product, $user));
+                } catch (\Exception $e) {
+                    Log::error('Back-in-stock email failed', ['product_id' => $product->id, 'user_id' => $user->id, 'error' => $e->getMessage()]);
+                }
             }
 
             // Mark wishlist status as active

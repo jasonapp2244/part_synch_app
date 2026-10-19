@@ -8,8 +8,10 @@ use App\Http\Controllers\Admin\{
     CategoryController,
     SubCategoryController,
     CompanyController,
+    ProductCategoryController,
     ProductController,
     EarningController,
+    ExportController,
     SettingsController,
     LegalPageController,
     ProfileController,
@@ -59,6 +61,7 @@ Route::middleware('admin')->group(function () {
     // Vendor Management
     Route::get('/vendor-records', [VendorController::class, 'VendorRecords'])->name('vendor.records');
     Route::post('/vendor/{id}/toggle-status', [VendorController::class, 'toggleStatus'])->name('vendor.toggle.status');
+    Route::post('/vendor/{id}/toggle-approval', [VendorController::class, 'toggleApproval'])->name('vendor.toggle.approval');
     Route::delete('/vendor/{id}', [VendorController::class, 'destroy'])->name('vendor.destroy');
 
     // User Management
@@ -90,6 +93,13 @@ Route::middleware('admin')->group(function () {
     Route::post('/company/{id}/toggle-status', [CompanyController::class, 'toggleStatus'])->name('company.toggle.status');
     Route::delete('/company/{id}', [CompanyController::class, 'destroy'])->name('company.destroy');
 
+    // Product Category CRUD (per company; vendors pick one when adding a product)
+    Route::get('/product-category-records', [ProductCategoryController::class, 'index'])->name('product.category.records');
+    Route::post('/product-category', [ProductCategoryController::class, 'store'])->name('product.category.store');
+    Route::put('/product-category/{id}', [ProductCategoryController::class, 'update'])->name('product.category.update');
+    Route::post('/product-category/{id}/toggle-status', [ProductCategoryController::class, 'toggleStatus'])->name('product.category.toggle.status');
+    Route::delete('/product-category/{id}', [ProductCategoryController::class, 'destroy'])->name('product.category.destroy');
+
     // Product Management
     Route::get('/product-records', [ProductController::class, 'ProductRecords'])->name('product.records');
     Route::post('/product/{id}/toggle-status', [ProductController::class, 'toggleStatus'])->name('product.toggle.status');
@@ -98,6 +108,7 @@ Route::middleware('admin')->group(function () {
     // Order Management
     Route::get('/earning-records', [EarningController::class, 'EarningRecords'])->name('earning.records');
     Route::get('/order/{id}', [EarningController::class, 'orderDetails'])->name('order.details');
+    Route::get('/order/{id}/invoice', [EarningController::class, 'invoice'])->name('order.invoice');
     Route::post('/order/{id}/update-status', [EarningController::class, 'updateOrderStatus'])->name('order.update.status');
 
     // Boost Package Management
@@ -126,6 +137,11 @@ Route::middleware('admin')->group(function () {
     Route::get('/reviews', [ReviewController::class, 'index'])->name('admin.reviews');
     Route::post('/review/{id}/status', [ReviewController::class, 'updateStatus'])->name('admin.reviews.status');
     Route::delete('/review/{id}', [ReviewController::class, 'destroy'])->name('admin.reviews.destroy');
+
+    // PDF / Excel download of any admin list (keys in App\Support\AdminExports)
+    Route::get('/export/{list}.{format}', [ExportController::class, 'download'])
+        ->where(['list' => '[a-z-]+', 'format' => 'pdf|xlsx'])
+        ->name('admin.export');
 
     // Settings
     Route::get('/settings', [SettingsController::class, 'index'])->name('admin.settings');

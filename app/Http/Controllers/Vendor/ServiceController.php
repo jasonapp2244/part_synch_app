@@ -42,7 +42,13 @@ class ServiceController extends Controller
                     'message' => 'Product not found!',
                 ], 400);
             }
-            $service = Service::where('product_id', $request->product_id)->first();
+            // One service per product. A standalone service has no product,
+            // and `where('product_id', null)` matched every other vendor's
+            // standalone service, so after the first one existed anywhere no
+            // vendor could add another (device run 2026-10-20).
+            $service = $request->product_id
+                ? Service::where('product_id', $request->product_id)->first()
+                : null;
             if ($service) {
                 return response()->json([
                     'status' => false,

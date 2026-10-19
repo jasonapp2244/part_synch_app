@@ -29,6 +29,15 @@ class OrderItem extends Model
         return $this->belongsTo(Product::class);
     }
 
-
-
+    /**
+     * Lines that count as money earned: everything except cancelled orders.
+     * Pass a vendor id to narrow it to that vendor's orders.
+     */
+    public function scopeEarned($query, ?int $vendorId = null)
+    {
+        return $query->whereHas('order', function ($q) use ($vendorId) {
+            $q->where('order_status', '!=', 'cancel')
+                ->when($vendorId, fn ($q) => $q->where('vendor_id', $vendorId));
+        });
+    }
 }

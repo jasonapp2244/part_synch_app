@@ -18,11 +18,15 @@ class ForgotPasswordMail extends Mailable
      */
 
      public $user;
-     public $new_password;
-    public function __construct($user,$new_password)
+     public $code;
+
+    /**
+     * $code is the 6-digit reset code, never a password (BCR-1).
+     */
+    public function __construct($user, $code)
     {
         $this->user = $user;
-        $this->new_password = $new_password;
+        $this->code = $code;
     }
 
     /**
@@ -31,7 +35,7 @@ class ForgotPasswordMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Forgot Password Mail',
+            subject: 'Your ' . config('app.name', 'Part Synch') . ' password reset code',
         );
     }
 

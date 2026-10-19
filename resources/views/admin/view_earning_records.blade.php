@@ -94,6 +94,9 @@
                         <div>
                             <h6 class="mb-0 text-white"><i class="bx bx-receipt me-2"></i>All Orders</h6>
                         </div>
+                        <div class="ms-auto">
+                            @include('admin.partials.export_buttons', ['list' => 'orders', 'onDark' => true])
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -140,6 +143,9 @@
                                     <td>
                                         <a href="{{ route('order.details', $order->id) }}" class="btn btn-sm btn-inverse-primary">
                                             <i class="bx bx-show me-0"></i> View
+                                        </a>
+                                        <a href="{{ route('order.invoice', $order->id) }}" class="btn btn-sm btn-inverse-danger" title="Download invoice (PDF)">
+                                            <i class="bx bxs-file-pdf me-0"></i>
                                         </a>
                                     </td>
                                 </tr>

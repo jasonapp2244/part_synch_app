@@ -39,6 +39,9 @@
                         <div>
                             <h6 class="mb-0 text-white"><i class="bx bx-box me-2"></i>Product Records</h6>
                         </div>
+                        <div class="ms-auto">
+                            @include('admin.partials.export_buttons', ['list' => 'products', 'onDark' => true])
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">

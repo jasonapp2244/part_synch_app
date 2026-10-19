@@ -23,7 +23,11 @@ class CategoryController extends Controller
             'category_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
+        // `categories.user_id` is a required foreign key (the migration's
+        // `->nullable()` sits after `constrained()` and never reached the
+        // column), so leaving it out made every create a 500.
         $data = [
+            'user_id' => $request->user()->id,
             'name' => $request->name,
             'description' => $request->description,
         ];

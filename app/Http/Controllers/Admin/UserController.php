@@ -20,6 +20,11 @@ class UserController extends Controller
         $user->status = $user->status === 'active' ? 'inactive' : 'active';
         $user->save();
 
+        // Blocking also ends their app sessions; signin refuses them after.
+        if ($user->status !== 'active') {
+            $user->tokens()->delete();
+        }
+
         return redirect()->route('user.records')->with('success', 'User status updated to ' . $user->status . '.');
     }
 

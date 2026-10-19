@@ -33,4 +33,29 @@ class Cart extends Model
 {
     return $this->belongsTo(User::class);
 }
+
+    /**
+     * `cart.price` is the LINE total (quantity x unit price), whatever the
+     * column name says: add-to-cart has always written it that way. Every
+     * reader multiplied it by the quantity again, so a line of 2 x 47.00 was
+     * ordered, emailed and counted in vendor earnings as 188.00 (BCR-14).
+     */
+    public function lineTotal(): float
+    {
+        return round((float) $this->price, 2);
+    }
+
+    public function unitPrice(): float
+    {
+        return $this->quantity > 0 ? round($this->lineTotal() / $this->quantity, 2) : $this->lineTotal();
+    }
+
+    /**
+     * The money columns of the order_items row this cart line becomes:
+     * `price` is the unit price, `total_price` the line total.
+     */
+    public function orderItemMoney(): array
+    {
+        return ['price' => $this->unitPrice(), 'total_price' => $this->lineTotal()];
+    }
 }

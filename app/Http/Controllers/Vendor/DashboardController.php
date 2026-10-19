@@ -23,9 +23,7 @@ class DashboardController extends Controller
         $pendingOrders = Order::where('vendor_id', $vendorId)->where('order_status', 'pending')->count();
         $completedOrders = Order::where('vendor_id', $vendorId)->whereIn('order_status', ['completed', 'delivered'])->count();
 
-        $totalRevenue = (float) OrderItem::whereHas('order', function ($q) use ($vendorId) {
-            $q->where('vendor_id', $vendorId);
-        })->sum('total_price');
+        $totalRevenue = (float) OrderItem::earned($vendorId)->sum('total_price');
 
         $recentOrders = Order::with(['orderItems.product'])
             ->where('vendor_id', $vendorId)
@@ -69,14 +67,10 @@ class DashboardController extends Controller
     {
         $vendorId = Auth::id();
 
-        $totalRevenue = (float) OrderItem::whereHas('order', function ($q) use ($vendorId) {
-            $q->where('vendor_id', $vendorId);
-        })->sum('total_price');
+        $totalRevenue = (float) OrderItem::earned($vendorId)->sum('total_price');
 
-        $monthlyRevenue = OrderItem::whereHas('order', function ($q) use ($vendorId) {
-            $q->where('vendor_id', $vendorId);
-        })
-        ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, SUM(total_price) as revenue, COUNT(*) as items_sold')
+        $monthlyRevenue = OrderItem::earned($vendorId)
+        ->selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, SUM(total_price) as revenue, SUM(quantity) as items_sold')
         ->groupByRaw('YEAR(created_at), MONTH(created_at)')
         ->orderByRaw('YEAR(created_at) DESC, MONTH(created_at) DESC')
         ->take(12)
@@ -86,6 +80,7 @@ class DashboardController extends Controller
             ->join('orders as o', 'oi.order_id', '=', 'o.id')
             ->join('products as p', 'oi.product_id', '=', 'p.id')
             ->where('o.vendor_id', $vendorId)
+            ->where('o.order_status', '!=', 'cancel')
             ->select('p.id', 'p.name', DB::raw('SUM(oi.quantity) as total_sold'), DB::raw('SUM(oi.total_price) as total_revenue'))
             ->groupBy('p.id', 'p.name')
             ->orderByDesc('total_revenue')

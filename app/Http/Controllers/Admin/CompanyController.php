@@ -30,7 +30,9 @@ class CompanyController extends Controller
             'status' => 'required|in:active,inactive',
         ]);
 
-        $data = $request->only('company_name', 'description', 'category_id', 'sub_category_id', 'status');
+        // `companies.user_id` is a required foreign key; see CategoryController::store.
+        $data = $request->only('company_name', 'description', 'category_id', 'sub_category_id', 'status')
+            + ['user_id' => $request->user()->id];
 
         if ($request->hasFile('company_image')) {
             $data['company_image'] = $request->file('company_image')->store('companies', 'public');

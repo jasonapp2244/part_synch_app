@@ -42,22 +42,9 @@ class BoostRequestController extends Controller
             return [$boost->id => $next];
         });
 
-        $current = VendorBoost::with($with)->approvedAndPaid()
-            ->where('end_date', '>', now())
-            ->orderBy('start_date')
-            ->get();
+        $current = VendorBoost::with($with)->current()->get();
 
-        $history = VendorBoost::with($with)
-            ->where(function ($q) {
-                $q->whereIn('approval_status', ['rejected', 'cancelled'])
-                    ->orWhere(function ($q) {
-                        $q->where('approval_status', 'approved')
-                            ->where(fn ($q) => $q->where('is_active', false)->orWhere('end_date', '<=', now()));
-                    });
-            })
-            ->latest('updated_at')
-            ->limit(200)
-            ->get();
+        $history = VendorBoost::with($with)->history()->get();
 
         $stats = [
             'pending' => $pending->count(),

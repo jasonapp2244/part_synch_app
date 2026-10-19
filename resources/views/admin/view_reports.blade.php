@@ -1,4 +1,5 @@
 @extends('layouts.admin')
+@section('title', 'Reported Content')
 
 @section('content')
     <div class="page-wrapper">
@@ -49,6 +50,7 @@
                 @if($status)
                     <a href="{{ route('admin.reports') }}" class="btn btn-sm btn-outline-secondary ms-3">Clear filter ({{ $status }})</a>
                 @endif
+                @include('admin.partials.export_buttons', ['list' => 'reports', 'class' => 'ms-auto'])
             </div>
             <hr />
 

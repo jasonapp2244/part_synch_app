@@ -14,7 +14,10 @@
                         </ol>
                     </nav>
                 </div>
-                <div class="ms-auto">
+                <div class="ms-auto d-flex gap-2">
+                    @if($pendingCount > 0)
+                        <span class="badge bg-warning text-dark rounded-pill px-3 py-2 shadow-sm">{{ $pendingCount }} Awaiting Approval</span>
+                    @endif
                     <span class="badge bg-gradient-quepal text-white rounded-pill px-3 py-2 shadow-sm">{{ $vendors->count() }} Total Vendors</span>
                 </div>
             </div>
@@ -32,6 +35,9 @@
                         <div>
                             <h6 class="mb-0 text-white"><i class="bx bx-store-alt me-2"></i>Vendor Records</h6>
                         </div>
+                        <div class="ms-auto">
+                            @include('admin.partials.export_buttons', ['list' => 'vendors', 'onDark' => true])
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -44,6 +50,7 @@
                                     <th>Email</th>
                                     <th>Business Type</th>
                                     <th>Phone Number</th>
+                                    <th>Approval</th>
                                     <th>Status</th>
                                     <th>Action</th>
                                 </tr>
@@ -64,6 +71,17 @@
                                     <td>{{ $vendor->business_type ?? 'N/A' }}</td>
                                     <td>{{ $vendor->phone_number ?? 'N/A' }}</td>
                                     <td>
+                                        @if($vendor->business_status === 'active')
+                                            <span class="badge bg-success rounded-pill px-3">Approved</span>
+                                            <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1" data-bs-toggle="modal" data-bs-target="#revokeVendorModal{{ $vendor->id }}">Revoke</button>
+                                        @else
+                                            <form action="{{ route('vendor.toggle.approval', $vendor->id) }}" method="POST" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-success px-3"><i class="bx bx-check me-1"></i>Approve</button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                    <td>
                                         <form action="{{ route('vendor.toggle.status', $vendor->id) }}" method="POST" class="d-inline">
                                             @csrf
                                             <button type="submit" class="badge border-0 text-white rounded-pill px-3 shadow-sm {{ $vendor->status === 'active' ? 'bg-gradient-quepal' : 'bg-gradient-bloody' }}">
@@ -82,7 +100,7 @@
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">No vendor records found.</td>
+                                    <td colspan="8" class="text-center text-muted py-4">No vendor records found.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
@@ -108,6 +126,7 @@
                             <p><strong>Name:</strong> {{ $vendor->first_name }} {{ $vendor->last_name }}</p>
                             <p><strong>Email:</strong> {{ $vendor->email ?? 'N/A' }}</p>
                             <p><strong>Phone:</strong> {{ $vendor->phone_number ?? 'N/A' }}</p>
+                            <p><strong>Approval:</strong> <span class="badge {{ $vendor->business_status === 'active' ? 'bg-success' : 'bg-warning text-dark' }}">{{ $vendor->business_status === 'active' ? 'Approved' : 'Awaiting approval' }}</span></p>
                             <p><strong>Status:</strong> <span class="badge {{ $vendor->status === 'active' ? 'bg-success' : 'bg-secondary' }}">{{ ucfirst($vendor->status ?? 'inactive') }}</span></p>
                         </div>
                         <div class="col-md-6">
@@ -130,6 +149,31 @@
             </div>
         </div>
     </div>
+
+    @if($vendor->business_status === 'active')
+    <!-- Revoke Approval Modal -->
+    <div class="modal fade" id="revokeVendorModal{{ $vendor->id }}" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <form action="{{ route('vendor.toggle.approval', $vendor->id) }}" method="POST">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title">Revoke Approval</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Withdraw approval for <strong>{{ $vendor->first_name }} {{ $vendor->last_name }}</strong>?</p>
+                        <div class="alert alert-warning py-2">They will be signed out of the app and cannot sign in as a vendor until approved again.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Revoke</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <!-- Delete Modal -->
     <div class="modal fade" id="deleteVendorModal{{ $vendor->id }}" tabindex="-1">

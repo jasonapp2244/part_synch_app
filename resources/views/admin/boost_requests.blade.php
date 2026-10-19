@@ -123,6 +123,9 @@
 
                     {{-- Pending --}}
                     <div class="tab-pane fade {{ $tab === 'pending' ? 'show active' : '' }}" id="tab-pending">
+                        <div class="d-flex justify-content-end mb-2">
+                            @include('admin.partials.export_buttons', ['list' => 'boost-requests', 'query' => ['tab' => 'pending']])
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-striped table-bordered align-middle boost-table">
                                 <thead>
@@ -188,6 +191,9 @@
 
                     {{-- Live & scheduled --}}
                     <div class="tab-pane fade {{ $tab === 'current' ? 'show active' : '' }}" id="tab-current">
+                        <div class="d-flex justify-content-end mb-2">
+                            @include('admin.partials.export_buttons', ['list' => 'boost-requests', 'query' => ['tab' => 'current']])
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-striped table-bordered align-middle boost-table">
                                 <thead>
@@ -239,6 +245,9 @@
 
                     {{-- History --}}
                     <div class="tab-pane fade {{ $tab === 'history' ? 'show active' : '' }}" id="tab-history">
+                        <div class="d-flex justify-content-end mb-2">
+                            @include('admin.partials.export_buttons', ['list' => 'boost-requests', 'query' => ['tab' => 'history']])
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-striped table-bordered align-middle boost-table">
                                 <thead>
