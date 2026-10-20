@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\{
 };
 
 use App\Http\Controllers\PublicPageController;
+use App\Http\Controllers\AppDownloadController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -40,6 +41,10 @@ Route::get('/legal/privacy-policy', [PublicPageController::class, 'privacyPolicy
 Route::get('/legal/terms', [PublicPageController::class, 'terms'])->name('legal.terms');
 Route::get('/support', [PublicPageController::class, 'support'])->name('support.page');
 Route::get('/account/delete', [PublicPageController::class, 'accountDeletion'])->name('account.delete.info');
+
+// Android test build for the client (uploaded to storage/app/apk/ by hand).
+Route::get('/download/app', [AppDownloadController::class, 'show'])->name('app.download');
+Route::get('/download/app/file', [AppDownloadController::class, 'file'])->name('app.download.file');
 
 /*
 |--------------------------------------------------------------------------

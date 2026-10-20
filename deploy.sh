@@ -79,10 +79,19 @@ echo $fixed ? "  {$fixed} fixed\n" : "  already hashed, nothing to do\n";
 '
 
 say "Fixing permissions"
-if id -u www-data >/dev/null 2>&1; then
-    chown -R www-data:www-data storage bootstrap/cache
-fi
-chmod -R 775 storage bootstrap/cache
+# storage/ must belong to the user PHP runs as. That is the owner of this
+# folder (the site user on CloudPanel), not necessarily www-data: chowning to
+# www-data on CloudPanel made every Blade page fail with "tempnam(): file
+# created in the system's temporary directory" (2026-10-21).
+SITE_OWNER="$(stat -c %U .)"
+SITE_GROUP="$(stat -c %G .)"
+fix_permissions() {
+    if [ "$(id -u)" = "0" ]; then
+        chown -R "$SITE_OWNER:$SITE_GROUP" storage bootstrap/cache
+    fi
+    chmod -R 775 storage bootstrap/cache
+}
+fix_permissions
 
 say "Restarting queue workers"
 php artisan queue:restart || true
@@ -90,6 +99,9 @@ php artisan queue:restart || true
 say "Maintenance mode off"
 php artisan up
 trap - EXIT
+
+# queue:restart and up wrote into storage/framework as root; hand it back.
+fix_permissions
 
 printf '\n\033[1;32mDeployed %s @ %s\033[0m\n' "$BRANCH" "$(git rev-parse --short HEAD)"
 git log -1 --format='%s' | sed 's/^/  /'

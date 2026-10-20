@@ -719,3 +719,16 @@ body.ps-auth {
         transition: none;
     }
 }
+
+/* ── app download page ─────────────────────────────────────────────── */
+
+.ps-steps {
+    margin: 0 0 14px;
+    padding-left: 20px;
+    color: var(--ps-ink);
+    font-size: 14px;
+}
+
+.ps-steps li {
+    margin-bottom: 8px;
+}

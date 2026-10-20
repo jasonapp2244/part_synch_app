@@ -23,17 +23,21 @@
             <div class="ps-visual__inner">
                 <span class="ps-brand">
                     <span class="ps-brand__mark"><img src="{{ asset('admin/images/brand/logo.png') }}" alt="Part Synch logo" width="215" height="195"></span>
-                    <span class="ps-brand__name">Part Synch<small>Admin panel</small></span>
+                    <span class="ps-brand__name">Part Synch<small>@yield('brand_note', 'Admin panel')</small></span>
                 </span>
 
                 <div class="ps-visual__copy">
-                    <h2 class="ps-visual__title">Run the marketplace that keeps job sites moving.</h2>
-                    <p class="ps-visual__text">Approve vendors, follow orders and schedule boosts for heavy-equipment parts, all in one place.</p>
+                    <h2 class="ps-visual__title">@yield('visual_title', 'Run the marketplace that keeps job sites moving.')</h2>
+                    <p class="ps-visual__text">@yield('visual_text', 'Approve vendors, follow orders and schedule boosts for heavy-equipment parts, all in one place.')</p>
+                    @hasSection('visual_points')
+                        @yield('visual_points')
+                    @else
                     <ul class="ps-visual__points">
                         <li><i class="bx bx-store-alt" aria-hidden="true"></i>Vendors, products and categories</li>
                         <li><i class="bx bx-package" aria-hidden="true"></i>Orders, earnings and invoices</li>
                         <li><i class="bx bx-trending-up" aria-hidden="true"></i>Boost requests and card payments</li>
                     </ul>
+                    @endif
                 </div>
             </div>
         </aside>
@@ -43,12 +47,12 @@
                 <div class="ps-card">
                     <div class="ps-card__logo">
                         <img src="{{ asset('admin/images/brand/logo.png') }}" alt="" width="215" height="195">
-                        <span><strong>Part Synch</strong>Admin panel</span>
+                        <span><strong>Part Synch</strong>@yield('brand_note', 'Admin panel')</span>
                     </div>
                     @yield('content')
                 </div>
             </div>
-            <footer class="ps-panel__footer">&copy; {{ date('Y') }} Part Synch. Administrator access only.</footer>
+            <footer class="ps-panel__footer">&copy; {{ date('Y') }} Part Synch. @yield('footer_note', 'Administrator access only.')</footer>
         </main>
     </div>
 
