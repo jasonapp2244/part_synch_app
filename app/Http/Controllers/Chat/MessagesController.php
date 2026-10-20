@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Response;
 use App\Models\User;
 use App\Models\UserBlock;
 use Chatify\Facades\ChatifyMessenger as Chatify;
+use App\Models\ChMessage;
 
 class MessagesController extends ChatifyMessagesController
 {
@@ -86,6 +87,39 @@ class MessagesController extends ChatifyMessagesController
             'records' => $items,
             'total' => $records->total(),
             'last_page' => $records->lastPage(),
+        ], 200);
+    }
+
+    /**
+     * Override: resolve an attachment to a URL on the host the app called.
+     * Chatify builds it from APP_URL, which gave a phone `http://localhost//storage/...`
+     * and every chat photo showed as unavailable (BCR-10). Only the two people
+     * in the conversation can resolve it, and only a bare file name is accepted.
+     */
+    public function download($fileName)
+    {
+        $notFound = Response::json([
+            'message' => 'Sorry, File does not exist in our server or may have been deleted!',
+        ], 404);
+
+        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $fileName) || str_contains($fileName, '..')) {
+            return $notFound;
+        }
+
+        $userId = Auth::id();
+        $isParticipant = ChMessage::where(fn ($q) => $q->where('from_id', $userId)->orWhere('to_id', $userId))
+            ->where('attachment', 'like', '%' . addcslashes($fileName, '%_\\') . '%')
+            ->pluck('attachment')
+            ->contains(fn ($attachment) => (json_decode((string) $attachment, true)['new_name'] ?? null) === $fileName);
+
+        $path = config('chatify.attachments.folder') . '/' . $fileName;
+        if (! $isParticipant || ! Chatify::storage()->exists($path)) {
+            return $notFound;
+        }
+
+        return Response::json([
+            'file_name' => $fileName,
+            'download_path' => asset('storage/' . $path),
         ], 200);
     }
 
