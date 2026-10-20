@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Vendor;
 
 use App\Models\Stock;
-use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Support\Str;
@@ -17,39 +16,6 @@ use App\Models\CompanyProductCategoryLinks;
 
 class ProductController extends Controller
 {
-    public function vendorDashboard()
-    {
-        $vendorId = Auth::id();
-
-        $totalProducts = Product::where('user_id', $vendorId)->count();
-        $activeProducts = Product::where('user_id', $vendorId)->where('is_active', 1)->count();
-        $outOfStock = Product::where('user_id', $vendorId)->where('stock_quantity', '<=', 0)->count();
-
-        $totalOrders = Order::where('vendor_id', $vendorId)->count();
-        $pendingOrders = Order::where('vendor_id', $vendorId)->where('order_status', 'pending')->count();
-        $completedOrders = Order::where('vendor_id', $vendorId)->whereIn('order_status', ['delivered', 'payment'])->count();
-        $cancelledOrders = Order::where('vendor_id', $vendorId)->where('order_status', 'cancelled')->count();
-
-        $totalRevenue = OrderItem::whereHas('order', function ($q) use ($vendorId) {
-            $q->where('vendor_id', $vendorId)->whereIn('order_status', ['delivered', 'payment']);
-        })->sum('total_price');
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Vendor dashboard stats fetched successfully',
-            'data' => [
-                'total_products' => $totalProducts,
-                'active_products' => $activeProducts,
-                'out_of_stock' => $outOfStock,
-                'total_orders' => $totalOrders,
-                'pending_orders' => $pendingOrders,
-                'completed_orders' => $completedOrders,
-                'cancelled_orders' => $cancelledOrders,
-                'total_revenue' => round($totalRevenue, 2),
-            ]
-        ]);
-    }
-
     public function getAllProduct(Request $request, $id = null)
     {
         $user = Auth::user();
