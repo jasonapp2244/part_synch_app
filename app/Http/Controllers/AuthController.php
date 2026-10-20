@@ -75,22 +75,31 @@ class AuthController extends Controller
                     'Mails.otp_generate',
                     'Your OTP Code'
                 ));
-
-                $adminEmail = env('Admin_Email');
-                Mail::to($adminEmail)->send(new OtpMail(
-                    [
-                        'first_name'      => $user->first_name,
-                        'email'           => $user->email,
-                        'phone_number'    => $user->phone_number,
-                        'business_type'   => $user->business_type ?? null,
-                        'vendor_type_id'  => $user->vendor_type_id ?? null,
-                    ],
-                    'Mails.new_user_mail',
-                    $accountType === 'business' ? 'New Vendor Registered' : 'New User Registered'
-                ));
-            } catch (\Exception $mailEx) {
+            } catch (\Throwable $mailEx) {
                 $otpEmailSent = false;
-                Log::error('Email sending failed: ' . $mailEx->getMessage());
+                Log::error('OTP email failed: ' . $mailEx->getMessage());
+            }
+
+            // The admin notice is separate: its failure must not tell the user
+            // their code was not sent. config(), not env(): deploy.sh caches
+            // config, after which env() is null and Mail::to(null) throws.
+            $adminEmail = config('app.admin_email');
+            if (filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    Mail::to($adminEmail)->send(new OtpMail(
+                        [
+                            'first_name'      => $user->first_name,
+                            'email'           => $user->email,
+                            'phone_number'    => $user->phone_number,
+                            'business_type'   => $user->business_type ?? null,
+                            'vendor_type_id'  => $user->vendor_type_id ?? null,
+                        ],
+                        'Mails.new_user_mail',
+                        $accountType === 'business' ? 'New Vendor Registered' : 'New User Registered'
+                    ));
+                } catch (\Throwable $mailEx) {
+                    Log::error('New-user admin email failed: ' . $mailEx->getMessage());
+                }
             }
 
             return response()->json([
