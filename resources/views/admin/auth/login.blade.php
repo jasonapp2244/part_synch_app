@@ -1,92 +1,60 @@
-<!doctype html>
-<html lang="en">
+@extends('layouts.auth')
 
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="{{ asset('admin/images/favicon-32x32.png') }}" type="image/png" />
-    <link href="{{ asset('admin/css/pace.min.css') }}" rel="stylesheet" />
-    <script src="{{ asset('admin/js/pace.min.js') }}"></script>
-    <link href="{{ asset('admin/css/bootstrap.min.css') }}" rel="stylesheet">
-    <link href="{{ asset('admin/css/bootstrap-extended.css') }}" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
-    <link href="{{ asset('admin/css/app.css') }}" rel="stylesheet">
-    <link href="{{ asset('admin/css/icons.css') }}" rel="stylesheet">
-    <title>Admin Login | Part Synch</title>
-    <style>
-        .auth-wrapper {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
-            padding: 1rem;
-        }
-        .auth-card {
-            width: 100%;
-            max-width: 420px;
-            border: none;
-            border-radius: 16px;
-            box-shadow: 0 20px 45px rgba(0, 0, 0, .25);
-        }
-        .auth-brand {
-            font-weight: 600;
-            letter-spacing: .5px;
-        }
-    </style>
-</head>
+@section('title', 'Sign in')
 
-<body>
-    <div class="auth-wrapper">
-        <div class="card auth-card">
-            <div class="card-body p-4 p-md-5">
-                <div class="text-center mb-4">
-                    <h3 class="auth-brand mb-1">Part Synch</h3>
-                    <p class="text-secondary mb-0">Admin Panel Sign In</p>
-                </div>
+@section('content')
+    <h1 class="ps-heading">Sign in</h1>
+    <p class="ps-sub">Use your administrator email and password.</p>
 
-                @if (session('error'))
-                    <div class="alert alert-danger py-2" role="alert">
-                        {{ session('error') }}
-                    </div>
-                @endif
-                @if (session('success'))
-                    <div class="alert alert-success py-2" role="alert">
-                        {{ session('success') }}
-                    </div>
-                @endif
+    @include('admin.auth.partials.alerts')
 
-                <form action="{{ route('admin.login.submit') }}" method="POST">
-                    @csrf
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" name="email" id="email"
-                            class="form-control @error('email') is-invalid @enderror"
-                            value="{{ old('email') }}" placeholder="admin@example.com" required autofocus>
-                        @error('email')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" name="password" id="password"
-                            class="form-control @error('password') is-invalid @enderror"
-                            placeholder="Enter your password" required>
-                        @error('password')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" name="remember" id="remember">
-                        <label class="form-check-label" for="remember">Remember me</label>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
-                    </div>
-                </form>
+    <form action="{{ route('admin.login.submit') }}" method="POST" data-busy novalidate>
+        @csrf
+
+        <div class="ps-field">
+            <label class="ps-label" for="email">Email</label>
+            <div class="ps-input-wrap">
+                <i class="bx bx-envelope" aria-hidden="true"></i>
+                <input type="email" name="email" id="email" value="{{ old('email') }}"
+                    class="ps-input @error('email') is-invalid @enderror"
+                    placeholder="admin@partsynch.com" autocomplete="username" required autofocus
+                    @error('email') aria-invalid="true" aria-describedby="email-error" @enderror>
             </div>
+            @error('email')
+                <div class="ps-error" id="email-error">{{ $message }}</div>
+            @enderror
         </div>
-    </div>
-</body>
 
-</html>
+        <div class="ps-field">
+            <div class="ps-label-row">
+                <label class="ps-label" for="password">Password</label>
+                <a class="ps-link ps-link--small" href="{{ route('admin.password.request') }}">Forgot password?</a>
+            </div>
+            <div class="ps-input-wrap">
+                <i class="bx bx-lock-alt" aria-hidden="true"></i>
+                <input type="password" name="password" id="password"
+                    class="ps-input @error('password') is-invalid @enderror"
+                    placeholder="Your password" autocomplete="current-password" required
+                    @error('password') aria-invalid="true" aria-describedby="password-error" @enderror>
+                <button type="button" class="ps-reveal" data-reveal="password" aria-label="Show password" aria-pressed="false">
+                    <i class="bx bx-show" aria-hidden="true"></i>
+                </button>
+            </div>
+            @error('password')
+                <div class="ps-error" id="password-error">{{ $message }}</div>
+            @enderror
+        </div>
+
+        <div class="ps-row">
+            <label class="ps-check" for="remember">
+                <input type="checkbox" name="remember" id="remember" value="1" @checked(old('remember'))>
+                Keep me signed in
+            </label>
+        </div>
+
+        <button type="submit" class="ps-btn">
+            <span class="ps-spinner" aria-hidden="true"></span>
+            Sign in
+        </button>
+    </form>
+@endsection

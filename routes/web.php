@@ -1,6 +1,7 @@
 <?php
 use App\Http\Controllers\Admin\{
     AuthController,
+    PasswordResetController,
     DashboardController,
     VendorController,
     UserController,
@@ -46,8 +47,14 @@ Route::get('/account/delete', [PublicPageController::class, 'accountDeletion'])-
 |--------------------------------------------------------------------------
 */
 Route::get('/login', [AuthController::class, 'showLogin'])->name('admin.login');
-Route::post('/login', [AuthController::class, 'login'])->name('admin.login.submit');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth')->name('admin.login.submit');
 Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
+
+// Forgot password: a 6-digit code by email, the same mechanism the app uses.
+Route::get('/forgot-password', [PasswordResetController::class, 'showRequest'])->name('admin.password.request');
+Route::post('/forgot-password', [PasswordResetController::class, 'sendCode'])->middleware('throttle:auth')->name('admin.password.email');
+Route::get('/reset-password', [PasswordResetController::class, 'showReset'])->name('admin.password.reset');
+Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:auth')->name('admin.password.update');
 
 /*
 |--------------------------------------------------------------------------

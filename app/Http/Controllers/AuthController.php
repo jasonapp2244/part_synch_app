@@ -5,11 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Mail\OtpMail;
 use Illuminate\Http\Request;
-use App\Mail\ForgotPasswordMail;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
+use App\Services\PasswordResetCodes;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
@@ -323,32 +321,20 @@ class AuthController extends Controller
      * resetPasswordWithCode(). The answer is the same whether or not the
      * address has an account, so it cannot be used to find out who does.
      */
-    public function forgotPassword(Request $request)
+    public function forgotPassword(Request $request, PasswordResetCodes $codes)
     {
         $request->validate(['email' => 'required|email']);
 
         $user = User::where('email', $request->email)->first();
 
         if ($user) {
-            $code = (string) random_int(100000, 999999);
-
-            DB::table('password_reset_tokens')->updateOrInsert(
-                ['email' => $user->email],
-                ['token' => Hash::make($code), 'created_at' => now()]
-            );
-            Cache::forget(self::resetAttemptsKey($user->email));
-
-            try {
-                Mail::to($user->email)->send(new ForgotPasswordMail($user, $code));
-            } catch (\Throwable $e) {
-                Log::error('Password reset email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
-            }
+            $codes->issue($user);
         }
 
         return response()->json([
             'status'  => true,
             'message' => 'If an account exists for that email, we have sent it a 6-digit code. It expires in '
-                . self::RESET_CODE_MINUTES . ' minutes.',
+                . PasswordResetCodes::MINUTES . ' minutes.',
         ]);
     }
 
@@ -357,7 +343,7 @@ class AuthController extends Controller
      * RESET_CODE_MINUTES and dies after RESET_CODE_ATTEMPTS wrong guesses;
      * success signs the account out everywhere.
      */
-    public function resetPasswordWithCode(Request $request)
+    public function resetPasswordWithCode(Request $request, PasswordResetCodes $codes)
     {
         $request->validate([
             'email'    => 'required|email',
@@ -365,51 +351,17 @@ class AuthController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        $invalid = response()->json([
-            'status'  => false,
-            'message' => 'This code is wrong or has expired. Request a new one and try again.',
-        ], 422);
-
-        $row = DB::table('password_reset_tokens')->where('email', $request->email)->first();
-        $attemptsKey = self::resetAttemptsKey($request->email);
-
-        if (! $row
-            || now()->subMinutes(self::RESET_CODE_MINUTES)->gt($row->created_at)
-            || Cache::get($attemptsKey, 0) >= self::RESET_CODE_ATTEMPTS) {
-            return $invalid;
+        if (! $codes->reset($request->email, $request->otp, $request->password)) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'This code is wrong or has expired. Request a new one and try again.',
+            ], 422);
         }
-
-        if (! Hash::check($request->otp, $row->token)) {
-            Cache::put($attemptsKey, Cache::get($attemptsKey, 0) + 1, now()->addMinutes(self::RESET_CODE_MINUTES));
-
-            return $invalid;
-        }
-
-        $user = User::where('email', $request->email)->first();
-        if (! $user) {
-            return $invalid;
-        }
-
-        $user->password = Hash::make($request->password);
-        $user->save();
-        $user->tokens()->delete();
-
-        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
-        Cache::forget($attemptsKey);
 
         return response()->json([
             'status'  => true,
             'message' => 'Your password has been changed. Sign in with the new one.',
         ]);
-    }
-
-    private const RESET_CODE_MINUTES = 15;
-
-    private const RESET_CODE_ATTEMPTS = 5;
-
-    private static function resetAttemptsKey(string $email): string
-    {
-        return 'password-reset-attempts:' . sha1(strtolower($email));
     }
 
     public function resetPassword(Request $request)

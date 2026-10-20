@@ -1,0 +1,721 @@
+/*
+ * Part Synch admin: sign-in, password reset and error pages.
+ * Brand from the mobile app: signal red #FC2C2E, hi-vis green #69E008,
+ * Poppins. The photo is the app's own login image.
+ */
+
+@font-face {
+    font-family: "Poppins";
+    src: url("../fonts/poppins/Poppins-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Poppins";
+    src: url("../fonts/poppins/Poppins-Medium.ttf") format("truetype");
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Poppins";
+    src: url("../fonts/poppins/Poppins-SemiBold.ttf") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --ps-red: #FC2C2E;
+    --ps-red-dark: #D91E20;
+    --ps-red-tint: #FDE8E8;
+    --ps-green: #69E008;
+    --ps-green-ink: #2F6B00;
+    --ps-ink: #1E2430;
+    --ps-slate: #5B6472;
+    --ps-line: #D6DAE1;
+    --ps-concrete: #F2F3F5;
+    --ps-white: #FFFFFF;
+    --ps-radius: 10px;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body.ps-auth {
+    margin: 0;
+    background: var(--ps-concrete);
+    color: var(--ps-ink);
+    font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── shell ─────────────────────────────────────────────────────────── */
+
+.ps-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    min-height: 100vh;
+}
+
+/* ── photo side ────────────────────────────────────────────────────── */
+
+/* Pinned to the window: a tall form (reset password) scrolls on its own
+   side while the photo and its words stay in view. */
+.ps-visual {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--ps-ink);
+    color: var(--ps-white);
+}
+
+.ps-visual__photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 60% 30%;
+}
+
+/* Dark at the bottom where the words sit, a red cast from the top corner. */
+.ps-visual::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(30, 36, 48, 0.15) 0%, rgba(30, 36, 48, 0.35) 45%, rgba(20, 24, 32, 0.92) 100%),
+        linear-gradient(135deg, rgba(252, 44, 46, 0.28) 0%, rgba(252, 44, 46, 0) 45%);
+}
+
+.ps-visual__inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    padding: 44px 56px 52px;
+}
+
+.ps-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.ps-brand__mark {
+    display: grid;
+    place-items: center;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: var(--ps-white);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.ps-brand__mark img {
+    width: 68px;
+    height: auto;
+}
+
+.ps-brand__name {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.ps-brand__name small {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+.ps-visual__copy {
+    max-width: 30rem;
+}
+
+.ps-visual__title {
+    margin: 0 0 14px;
+    font-size: clamp(28px, 2.6vw, 38px);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+.ps-visual__text {
+    margin: 0 0 26px;
+    font-size: 16px;
+    opacity: 0.88;
+}
+
+.ps-visual__points {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 14px;
+}
+
+.ps-visual__points li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ps-visual__points i {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(105, 224, 8, 0.18);
+    color: var(--ps-green);
+    font-size: 16px;
+}
+
+/* ── form side ─────────────────────────────────────────────────────── */
+
+.ps-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--ps-concrete);
+}
+
+.ps-panel__body {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 32px;
+}
+
+/* The form sits on a card so the right side has a clear frame. */
+.ps-card {
+    width: 100%;
+    max-width: 452px;
+    padding: 36px 40px 40px;
+    border-radius: 18px;
+    background: var(--ps-white);
+    box-shadow: 0 1px 2px rgba(30, 36, 48, 0.06), 0 12px 32px rgba(30, 36, 48, 0.08);
+}
+
+.ps-card__logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 26px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid #EBEDF1;
+    color: var(--ps-slate);
+    font-size: 13px;
+}
+
+.ps-card__logo img {
+    width: 48px;
+    height: auto;
+}
+
+.ps-card__logo strong {
+    display: block;
+    color: var(--ps-ink);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.ps-heading {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+}
+
+.ps-sub {
+    margin: 0 0 28px;
+    color: var(--ps-slate);
+}
+
+.ps-panel__footer {
+    padding: 18px 32px 24px;
+    color: var(--ps-slate);
+    font-size: 13px;
+    text-align: center;
+}
+
+/* ── fields ────────────────────────────────────────────────────────── */
+
+.ps-field {
+    margin-bottom: 18px;
+}
+
+.ps-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.ps-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.ps-input-wrap {
+    position: relative;
+}
+
+.ps-input-wrap > i {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    transform: translateY(-50%);
+    color: var(--ps-slate);
+    font-size: 19px;
+    pointer-events: none;
+}
+
+.ps-input {
+    display: block;
+    width: 100%;
+    height: 50px;
+    padding: 0 46px 0 44px;
+    border: 1px solid var(--ps-line);
+    border-radius: var(--ps-radius);
+    background: var(--ps-white);
+    color: var(--ps-ink);
+    font: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ps-input::placeholder {
+    color: #98A0AC;
+}
+
+.ps-input:hover {
+    border-color: #B9BFCA;
+}
+
+/* Focus is ink + a soft ring; red is kept for real errors only, so an
+   autofocused field never looks like it failed. */
+.ps-input:focus {
+    border-color: var(--ps-ink);
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(30, 36, 48, 0.08);
+}
+
+.ps-input.is-invalid,
+.ps-input.is-invalid:focus {
+    border-color: var(--ps-red-dark);
+    box-shadow: 0 0 0 4px rgba(252, 44, 46, 0.12);
+}
+
+.ps-input-wrap:focus-within > i {
+    color: var(--ps-ink);
+}
+
+.ps-input--code {
+    padding-left: 44px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.4em;
+}
+
+.ps-error {
+    margin-top: 6px;
+    color: var(--ps-red-dark);
+    font-size: 13px;
+}
+
+.ps-hint {
+    margin-top: 6px;
+    color: var(--ps-slate);
+    font-size: 13px;
+}
+
+/* Show / hide password */
+.ps-reveal {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ps-slate);
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.ps-reveal:hover {
+    background: var(--ps-concrete);
+    color: var(--ps-ink);
+}
+
+.ps-reveal:focus-visible,
+.ps-link:focus-visible,
+.ps-btn:focus-visible,
+.ps-check input:focus-visible {
+    outline: 3px solid rgba(252, 44, 46, 0.45);
+    outline-offset: 2px;
+}
+
+.ps-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 4px 0 24px;
+}
+
+.ps-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.ps-check input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--ps-red);
+}
+
+.ps-link {
+    color: var(--ps-red-dark);
+    font-weight: 500;
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+.ps-link:hover {
+    color: var(--ps-red);
+    text-decoration: underline;
+}
+
+.ps-link--small {
+    font-size: 13px;
+}
+
+/* ── buttons ───────────────────────────────────────────────────────── */
+
+.ps-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    height: 50px;
+    padding: 0 22px;
+    border: 0;
+    border-radius: var(--ps-radius);
+    background: var(--ps-red);
+    color: var(--ps-white);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.05s ease;
+}
+
+.ps-btn:hover {
+    background: var(--ps-red-dark);
+    color: var(--ps-white);
+}
+
+.ps-btn:active {
+    transform: translateY(1px);
+}
+
+.ps-btn[disabled] {
+    opacity: 0.75;
+    cursor: progress;
+}
+
+.ps-btn--ghost {
+    background: var(--ps-white);
+    color: var(--ps-ink);
+    box-shadow: inset 0 0 0 1px var(--ps-line);
+}
+
+.ps-btn--ghost:hover {
+    background: var(--ps-concrete);
+    color: var(--ps-ink);
+}
+
+.ps-spinner {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: var(--ps-white);
+    border-radius: 50%;
+    animation: ps-spin 0.7s linear infinite;
+}
+
+.ps-btn.is-busy .ps-spinner {
+    display: inline-block;
+}
+
+@keyframes ps-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ps-alt {
+    margin: 22px 0 0;
+    color: var(--ps-slate);
+    font-size: 14px;
+    text-align: center;
+}
+
+/* ── alerts ────────────────────────────────────────────────────────── */
+
+.ps-alert {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 22px;
+    padding: 12px 14px;
+    border-radius: var(--ps-radius);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.ps-alert i {
+    flex: none;
+    font-size: 18px;
+    line-height: 1.45rem;
+}
+
+.ps-alert span {
+    line-height: 1.45rem;
+}
+
+.ps-alert--error {
+    background: var(--ps-red-tint);
+    color: #8F1213;
+}
+
+.ps-alert--success {
+    background: #EDFBE0;
+    color: var(--ps-green-ink);
+}
+
+/* ── error pages ───────────────────────────────────────────────────── */
+
+.ps-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--ps-red-tint);
+    color: #8F1213;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ps-actions {
+    display: grid;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+/* ── small screens: the photo becomes a banner ─────────────────────── */
+
+@media (max-width: 991.98px) {
+    .ps-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+    }
+
+    .ps-visual__photo {
+        object-position: 60% 35%;
+    }
+
+    .ps-visual__inner {
+        justify-content: flex-end;
+    }
+
+    .ps-visual__copy {
+        display: none;
+    }
+
+    .ps-visual {
+        position: relative;
+        height: auto;
+        min-height: 210px;
+    }
+
+    .ps-visual__inner {
+        padding: 22px 20px 52px;
+    }
+
+    .ps-brand__mark {
+        width: 60px;
+        height: 60px;
+    }
+
+    .ps-brand__mark img {
+        width: 52px;
+    }
+
+    .ps-panel__body {
+        align-items: flex-start;
+        padding: 0 16px 24px;
+    }
+
+    /* The card lifts over the bottom of the photo banner. */
+    .ps-card {
+        position: relative;
+        z-index: 2;
+        margin-top: -32px;
+        padding: 28px 22px 30px;
+    }
+
+    .ps-card__logo {
+        display: none;
+    }
+
+    .ps-heading {
+        font-size: 24px;
+    }
+}
+
+/* ── motion ────────────────────────────────────────────────────────── */
+/* One entrance: the photo settles, then the words and the card rise in.
+   Feedback motion answers the person: the alert slides in, an error nudges. */
+
+@keyframes ps-settle {
+    from {
+        transform: scale(1.08);
+    }
+
+    to {
+        transform: scale(1);
+    }
+}
+
+@keyframes ps-rise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes ps-nudge {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-6px);
+    }
+
+    50% {
+        transform: translateX(5px);
+    }
+
+    75% {
+        transform: translateX(-3px);
+    }
+}
+
+.ps-visual__photo {
+    animation: ps-settle 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.ps-brand {
+    animation: ps-rise 0.6s ease-out 0.15s both;
+}
+
+.ps-visual__copy {
+    animation: ps-rise 0.7s ease-out 0.35s both;
+}
+
+.ps-card {
+    animation: ps-rise 0.6s ease-out 0.1s both;
+}
+
+.ps-alert {
+    animation: ps-rise 0.35s ease-out both;
+}
+
+.ps-alert--error {
+    animation: ps-rise 0.3s ease-out both, ps-nudge 0.4s ease-in-out 0.3s;
+}
+
+.ps-btn:not([disabled]):hover {
+    box-shadow: 0 6px 16px rgba(252, 44, 46, 0.28);
+}
+
+.ps-btn--ghost:not([disabled]):hover {
+    box-shadow: none;
+}
+
+.ps-reveal i {
+    transition: transform 0.2s ease;
+}
+
+.ps-reveal[aria-pressed="true"] i {
+    transform: scale(1.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ps-visual__photo,
+    .ps-brand,
+    .ps-visual__copy,
+    .ps-card,
+    .ps-alert,
+    .ps-alert--error {
+        animation: none;
+    }
+
+    .ps-spinner {
+        animation-duration: 2s;
+    }
+
+    .ps-input,
+    .ps-btn,
+    .ps-reveal i {
+        transition: none;
+    }
+}
