@@ -33,6 +33,23 @@ class MessagesController extends ChatifyMessagesController
     }
 
     /**
+     * Override: sign a Pusher subscription only for the caller's own channel.
+     * Every message is pushed to private-chatify.{recipientId}, and Chatify
+     * signs any channel name, so one user could subscribe to another's and
+     * read their messages as they arrived.
+     */
+    public function pusherAuth(Request $request)
+    {
+        $channel = (string) $request['channel_name'];
+
+        if ($channel !== 'private-chatify.' . Auth::id()) {
+            return Response::json(['message' => 'Unauthorized'], 403);
+        }
+
+        return Chatify::pusherAuth($request->user(), Auth::user(), $channel, $request['socket_id']);
+    }
+
+    /**
      * Fields a contact row may carry. Chatify selects users.* and hydrates the
      * rows into ChMessage, so User::$hidden never applies and the password
      * hash, OTP and reset tokens would otherwise be sent to the other party

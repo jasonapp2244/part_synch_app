@@ -22,7 +22,10 @@ return [
     |-------------------------------------
     */
     'routes' => [
-        'custom' => env('CHATIFY_CUSTOM_ROUTES', false),
+        // true loads routes/chatify/*.php, which are all commented out: the app
+        // serves chat from routes/api.php through its own MessagesController,
+        // and the package routes would skip its block and privacy checks.
+        'custom' => env('CHATIFY_CUSTOM_ROUTES', true),
         'prefix' => env('CHATIFY_ROUTES_PREFIX', 'chatify'),
         'middleware' => env('CHATIFY_ROUTES_MIDDLEWARE', ['web','auth']),
         'namespace' => env('CHATIFY_ROUTES_NAMESPACE', 'Chatify\Http\Controllers'),
