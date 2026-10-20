@@ -44,6 +44,11 @@ class SettingsController extends Controller
                 'maintenance_mode' => '0',
                 'maintenance_message' => '',
             ],
+            // Boosts are paid by card in the app; products and services are
+            // paid outside it. Off pauses card payment without an app release.
+            'payments' => [
+                'boost_card_payment' => '1',
+            ],
             // Legal documents and support contact details are edited on the
             // Legal & Support screen (LegalPageController), not here.
         ];
@@ -105,6 +110,7 @@ class SettingsController extends Controller
         // An unchecked checkbox is absent from the request, so it has to be
         // written explicitly or maintenance mode could never be turned off.
         Setting::set('maintenance_mode', $request->boolean('maintenance_mode') ? '1' : '0', 'mobile');
+        Setting::set('boost_card_payment', $request->boolean('boost_card_payment') ? '1' : '0', 'payments');
 
         return redirect()->route('admin.settings')->with('success', 'Settings updated successfully.');
     }

@@ -16,22 +16,12 @@ return [
 
 
 
+    // In-app card payment for boosts only; products and services are paid
+    // outside the app.
     'stripe' => [
         'key'    => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET'),
-    ],
-
-    // 'paypal' => [
-    //     'client_id' => env('PAYPAL_CLIENT_ID'),
-    //     'secret'    => env('PAYPAL_SECRET'),
-    //     'mode'      => env('PAYPAL_MODE'), // sandbox|live
-    // ],
-
-
-    'paypal' => [
-        'client_id' => env('PAYPAL_CLIENT_ID'),
-        'secret' => env('PAYPAL_SECRET'),
-        'mode' => env('PAYPAL_MODE', 'sandbox'), // 'sandbox' ya 'live'
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
 

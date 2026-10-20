@@ -7,6 +7,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AppConfigController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\SupportController;
@@ -38,7 +39,6 @@ use App\Http\Controllers\User\{
     OrderController as UserOrderController,
     CartController as UserCartController,
     CheckoutController as UserCheckoutController,
-    PaymentController as UserPaymentController,
     BoostedProductsController,
     NotificationController as UserNotificationController,
     AddressController as UserAddressController,
@@ -92,6 +92,9 @@ Route::get('/vendor_type', [VendorTypeController::class, 'vendorType']);
 Route::get('/app-config', [AppConfigController::class, 'config']);
 Route::get('/legal/privacy-policy', [AppConfigController::class, 'privacyPolicy']);
 Route::get('/legal/terms', [AppConfigController::class, 'terms']);
+
+// Stripe → boost card payments. Public; every event is signature-checked.
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])->name('stripe.webhook');
 
 // ────────────────────────────────
 // Protected Routes (Requires Sanctum Auth)
@@ -189,8 +192,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/positions', [VendorBoostController::class, 'getBoostPositions']);
             Route::get('/pricing', [VendorBoostController::class, 'getBoostPricing']);
             Route::get('/price-preview', [VendorBoostController::class, 'getPricePreview']);
-            // Payment happens outside the app; an admin approves in the panel.
+            // One-time card payment in the app (Stripe); the webhook backs up confirm.
             Route::post('/request', [VendorBoostController::class, 'requestBoost']);
+            Route::post('/{id}/payment-intent', [VendorBoostController::class, 'createPayment'])->whereNumber('id');
+            Route::post('/{id}/payment/confirm', [VendorBoostController::class, 'confirmPayment'])->whereNumber('id');
             Route::post('/cancel', [VendorBoostController::class, 'cancelBoostPurchase']);
             Route::post('/delete', [VendorBoostController::class, 'deleteBoost']);
             Route::get('/my-boosts', [VendorBoostController::class, 'getMyBoosts']);
@@ -256,15 +261,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/notifications/unread-count', [UserNotificationController::class, 'unreadCount']);
         Route::post('/notifications/mark-read', [UserNotificationController::class, 'markAsRead']);
         Route::post('/notifications/mark-all-read', [UserNotificationController::class, 'markAllAsRead']);
-
-        // Payment — commented out: client requirement is payment handled outside the app
-        // Kept for future use if in-app payment is needed
-        // Route::post('payment/initiate', [UserPaymentController::class, 'initiatePayment']);
-        // Route::post('payment/confirm', [UserPaymentController::class, 'confirmPayment']);
-        // Route::post('payment/stripe/cancel', [UserPaymentController::class, 'stripeCancel']);
-        // Route::post('payment/stripe/success', [UserPaymentController::class, 'stripeSuccess']);
-        // Route::get('payment/paypal/success', [UserPaymentController::class, 'paypalSuccess'])->name('paypal.success');
-        // Route::get('payment/paypal/cancel', [UserPaymentController::class, 'paypalCancel'])->name('paypal.cancel');
 
         // Boosted Products (User View)
         Route::get('/boosted-products/slider', [BoostedProductsController::class, 'getBoostedProductsSlider']);

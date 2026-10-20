@@ -340,7 +340,7 @@ class AdminExports
                 'Status' => fn ($b) => ucfirst($b->status),
                 'Amount' => fn ($b) => (float) $b->amount,
                 'Currency' => fn ($b) => strtoupper($b->currency ?? 'usd'),
-                'Payment method' => fn ($b) => VendorBoost::PAYMENT_METHODS[$b->payment_method] ?? ucfirst((string) $b->payment_method),
+                'Payment method' => fn ($b) => VendorBoost::methodLabel($b->payment_method),
                 'Starts' => fn ($b) => self::date($b->start_date),
                 'Ends' => fn ($b) => self::date($b->end_date),
                 'Requested' => fn ($b) => self::date($b->created_at),

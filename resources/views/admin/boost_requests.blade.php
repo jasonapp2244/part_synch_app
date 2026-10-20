@@ -224,7 +224,7 @@
                                             <td>
                                                 {{ $money($boost) }}
                                                 <div class="small text-muted">
-                                                    {{ \App\Models\VendorBoost::PAYMENT_METHODS[$boost->payment_method] ?? ucfirst((string) $boost->payment_method) }}
+                                                    {{ \App\Models\VendorBoost::methodLabel($boost->payment_method) }}
                                                     @if($boost->payment_reference) · {{ $boost->payment_reference }}@endif
                                                 </div>
                                             </td>
@@ -359,7 +359,7 @@
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="refunded" value="1" id="refunded{{ $boost->id }}">
-                                <label class="form-check-label" for="refunded{{ $boost->id }}">The payment was refunded</label>
+                                <label class="form-check-label" for="refunded{{ $boost->id }}">{{ $boost->payment_method === 'stripe' ? 'Refund the card payment through Stripe now' : 'The payment was refunded' }}</label>
                             </div>
                         </div>
                         <div class="modal-footer">

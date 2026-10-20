@@ -10,15 +10,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
  * One boost request/purchase: a vendor's products shown in one home-page
  * position for one package's duration.
  *
- * Lifecycle: requested in the app (approval_status=pending) -> paid outside
- * the app and approved by an admin (approved, payment_status=success) ->
- * scheduled until start_date, live until end_date, then expired. It can be
- * rejected while pending or cancelled at any point.
+ * Lifecycle: requested in the app (approval_status=pending) -> paid by card in
+ * the app, which approves it (payment_method=stripe, transaction_id=pi_...),
+ * or paid outside the app and approved by an admin -> scheduled until
+ * start_date, live until end_date, then expired. It can be rejected while
+ * pending or cancelled at any point.
  */
 class VendorBoost extends Model
 {
     use HasFactory;
 
+    /**
+     * Ways an admin can record a payment taken outside the app. Card payments
+     * made in the app are recorded as 'stripe' by the payment itself.
+     */
     public const PAYMENT_METHODS = [
         'bank_transfer' => 'Bank transfer',
         'payment_link'  => 'Payment link / card (outside the app)',
@@ -49,6 +54,15 @@ class VendorBoost extends Model
     ];
 
     protected $appends = ['status'];
+
+    public static function methodLabel(?string $method): string
+    {
+        if ($method === 'stripe') {
+            return 'Card in app (Stripe)';
+        }
+
+        return self::PAYMENT_METHODS[$method] ?? ucfirst((string) $method);
+    }
 
     public function vendor()
     {

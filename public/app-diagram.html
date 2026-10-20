@@ -81,7 +81,7 @@
 <body>
 
 <h1>Part-Synch B2B Marketplace</h1>
-<p class="subtitle">Complete Application Architecture &amp; Flow Diagram &bull; Laravel 11 + Sanctum + Stripe/PayPal</p>
+<p class="subtitle">Complete Application Architecture &amp; Flow Diagram &bull; Laravel 12 + Sanctum + Stripe (boosts)</p>
 
 <div class="tabs">
     <div class="tab active" onclick="showTab('overview', this)">Overview</div>
@@ -129,7 +129,7 @@
             <div class="arch-box">
                 <h4>Payments</h4>
                 <div class="count" style="color:#ff9800;">2</div>
-                <div class="label">Stripe + PayPal</div>
+                <div class="label">Stripe (boosts only)</div>
             </div>
             <div class="arch-box">
                 <h4>Chat</h4>
@@ -149,7 +149,7 @@
                     <li>Auth (signup, login, OTP, password) - 7 endpoints</li>
                     <li>User flows (home, cart, checkout, order) - 30+ endpoints</li>
                     <li>Vendor flows (products, orders, boost) - 35+ endpoints</li>
-                    <li>Payment (Stripe + PayPal) - 6 endpoints</li>
+                    <li>Payment - products and services paid outside the app</li>
                     <li>Chat (Chatify/Pusher) - 12 endpoints</li>
                     <li>Email system - 9 mail classes, 12 templates</li>
                 </ul>
@@ -297,7 +297,7 @@
                     <li><span class="method">POST</span> /user/payment/confirm - Verify payment</li>
                     <li><span class="method">POST</span> /user/store-wishlist - Add wishlist</li>
                     <li><span class="method">DELETE</span> /user/remove-wishlist - Remove wishlist</li>
-                    <li>Stripe + PayPal callbacks - Working</li>
+                    <li>Stripe webhook - boost payments</li>
                 </ul>
                 <ul class="missing">
                     <li>Payment history - MISSING</li>
@@ -380,7 +380,7 @@
                 <h3><span class="icon" style="background:linear-gradient(135deg,#8e2de2,#4a00e0);color:#fff;">5</span> Boost System <span class="status-badge badge-done">95%</span></h3>
                 <ul class="done">
                     <li>Packages, positions, pricing - 3 GET endpoints</li>
-                    <li>Purchase boost - Stripe/PayPal integration</li>
+                    <li>Pay for a boost - Stripe card, in app</li>
                     <li>Confirm payment - Activate boost</li>
                     <li>Boost existing products - Post-creation boost</li>
                     <li>My boosts + My boosted products</li>
@@ -558,7 +558,7 @@
                     <li><b>Order</b> - user_id, vendor_id, status, payment</li>
                     <li><b>OrderItem</b> - order_id, product_id, qty, price</li>
                     <li><b>Cart</b> - user_id, product_id, quantity, price</li>
-                    <li><b>Payment</b> - stripe/paypal, amount, status</li>
+                    <li><b>Payment</b> - boosts: stripe, amount, status</li>
                 </ul>
             </div>
             <div class="flow-card">
@@ -685,7 +685,7 @@
                     <li>Phase 2: Add admin CRUD operations</li>
                     <li>Phase 3: Implement Review/Rating system</li>
                     <li>Phase 3: Add cancel order + refund endpoints</li>
-                    <li>Phase 4: Add Stripe/PayPal webhooks</li>
+                    <li>Phase 4: Stripe webhook for boost payments</li>
                     <li>Phase 4: Implement Discount/Coupon system</li>
                     <li>Phase 5: Performance optimization (N+1, caching)</li>
                 </ul>

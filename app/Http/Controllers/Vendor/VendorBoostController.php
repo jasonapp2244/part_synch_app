@@ -10,24 +10,27 @@ use App\Models\Product;
 use App\Models\VendorBoost;
 use App\Services\BoostCapacity;
 use App\Services\BoostWorkflow;
+use App\Services\StripeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Stripe\Exception\ApiErrorException;
 
 /**
  * Vendor side of product boosts.
  *
- * The vendor requests a boost in the app; payment happens outside the app
- * (the admin sends an invoice or payment link) and an admin approves it in
- * the panel. There is deliberately no card checkout here: Apple 3.1.1 and
- * Google Play billing reject a card gateway for a digital promotion.
+ * The vendor requests a boost and pays for it in the app with a one-time
+ * Stripe card payment (client decision 2026-10-21); the payment approves it.
+ * Products and services are paid outside the app. When the admin switches
+ * card payment off, a request waits for payment outside the app and an
+ * admin's approval instead.
  */
 class VendorBoostController extends Controller
 {
-    public function __construct(private BoostWorkflow $workflow, private BoostCapacity $capacity)
+    public function __construct(private BoostWorkflow $workflow, private BoostCapacity $capacity, private StripeService $stripe)
     {
     }
 
@@ -43,7 +46,8 @@ class VendorBoostController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Boost packages fetched successfully',
-            'data' => $packages
+            'data' => $packages,
+            'card_payment_enabled' => $this->stripe->cardPaymentEnabled(),
         ]);
     }
 
@@ -77,7 +81,8 @@ class VendorBoostController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Boost pricing fetched successfully',
-            'data' => $data
+            'data' => $data,
+            'card_payment_enabled' => $this->stripe->cardPaymentEnabled(),
         ]);
     }
 
@@ -149,7 +154,9 @@ class VendorBoostController extends Controller
     }
 
     /**
-     * Request a boost. Payment is arranged outside the app; an admin approves.
+     * Request a boost. With card payment on, the app pays for it next
+     * (createPayment / confirmPayment); otherwise an admin approves it after
+     * payment outside the app.
      */
     public function requestBoost(Request $request)
     {
@@ -187,9 +194,101 @@ class VendorBoostController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'Request sent. Our team will contact you by email to complete it.',
+            'message' => $this->stripe->cardPaymentEnabled()
+                ? 'Boost created. Pay for it to start.'
+                : 'Request sent. Our team will contact you by email to complete it.',
             'data' => $this->present($boost->fresh()),
+            'card_payment_enabled' => $this->stripe->cardPaymentEnabled(),
         ], 201);
+    }
+
+    /**
+     * Start (or resume) the one-time card payment for the vendor's own unpaid
+     * request. The amount is the server's price, never the client's.
+     */
+    public function createPayment(int $id)
+    {
+        if (! $this->stripe->cardPaymentEnabled()) {
+            return response()->json(['status' => false, 'message' => 'Card payment for boosts is not available right now.'], 409);
+        }
+
+        $boost = VendorBoost::where('id', $id)->where('vendor_id', Auth::id())->first();
+        if (! $boost) {
+            return response()->json(['status' => false, 'message' => 'Boost request not found.'], 404);
+        }
+        if ($boost->approval_status !== 'pending' || $boost->payment_status === 'success') {
+            return response()->json(['status' => false, 'message' => 'This boost is already paid or closed.'], 409);
+        }
+        if (StripeService::minorUnits($boost) < 50) {
+            return response()->json(['status' => false, 'message' => 'This boost has no price to pay. Contact support.'], 409);
+        }
+
+        try {
+            $intent = $this->stripe->createBoostPaymentIntent($boost);
+        } catch (ApiErrorException $e) {
+            Log::error('Stripe payment intent failed', ['vendor_boost_id' => $boost->id, 'error' => $e->getMessage()]);
+
+            return response()->json(['status' => false, 'message' => 'The card payment could not be started. Please try again.'], 502);
+        }
+
+        $boost->update(['transaction_id' => $intent->id, 'payment_method' => 'stripe']);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Payment ready.',
+            'data' => [
+                'vendor_boost_id' => $boost->id,
+                'client_secret' => $intent->client_secret,
+                'publishable_key' => $this->stripe->publishableKey(),
+                'amount' => (float) $boost->amount,
+                'currency' => strtolower($boost->currency ?: 'usd'),
+            ],
+        ]);
+    }
+
+    /**
+     * Called by the app after the payment sheet succeeds. The payment is read
+     * back from Stripe; nothing the client says about it is trusted. The
+     * webhook does the same, so a closed app still gets its boost.
+     */
+    public function confirmPayment(int $id)
+    {
+        $boost = VendorBoost::where('id', $id)->where('vendor_id', Auth::id())->first();
+        if (! $boost) {
+            return response()->json(['status' => false, 'message' => 'Boost request not found.'], 404);
+        }
+        if ($boost->payment_status === 'success') {
+            return response()->json(['status' => true, 'message' => 'Boost paid.', 'data' => $this->present($boost)]);
+        }
+        if (! str_starts_with((string) $boost->transaction_id, 'pi_')) {
+            return response()->json(['status' => false, 'message' => 'No card payment was started for this boost.'], 409);
+        }
+
+        try {
+            $intent = $this->stripe->retrievePaymentIntent($boost->transaction_id);
+        } catch (ApiErrorException $e) {
+            Log::error('Stripe payment lookup failed', ['vendor_boost_id' => $boost->id, 'error' => $e->getMessage()]);
+
+            return response()->json(['status' => false, 'message' => 'The payment could not be checked. Please try again.'], 502);
+        }
+
+        if ($intent->status !== 'succeeded') {
+            return response()->json([
+                'status' => false,
+                'message' => $intent->status === 'processing'
+                    ? 'Your payment is processing. The boost starts as soon as it completes.'
+                    : 'The payment has not gone through.',
+                'payment_status' => $intent->status,
+            ], 409);
+        }
+
+        try {
+            $boost = $this->workflow->markPaidByStripe($boost, $intent);
+        } catch (ValidationException $e) {
+            return response()->json(['status' => false, 'message' => collect($e->errors())->flatten()->first()], 422);
+        }
+
+        return response()->json(['status' => true, 'message' => 'Boost paid.', 'data' => $this->present($boost->fresh())]);
     }
 
     /**
@@ -206,7 +305,8 @@ class VendorBoostController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Your boosts fetched successfully',
-            'data' => $boosts
+            'data' => $boosts,
+            'card_payment_enabled' => $this->stripe->cardPaymentEnabled(),
         ]);
     }
 
@@ -235,10 +335,10 @@ class VendorBoostController extends Controller
             return response()->json(['status' => false, 'message' => 'Boost request not found.'], 404);
         }
 
-        if ($boost->approval_status !== 'pending') {
+        if ($boost->approval_status !== 'pending' || $boost->payment_status === 'success') {
             return response()->json([
                 'status' => false,
-                'message' => 'Only a pending request can be withdrawn. Contact support about an approved boost.'
+                'message' => 'Only an unpaid pending request can be withdrawn. Contact support about a paid or approved boost.'
             ], 400);
         }
 
@@ -363,6 +463,11 @@ class VendorBoostController extends Controller
                 'id' => $boost->position->id,
                 'name' => $boost->position->name,
             ] : null,
+            'amount' => (float) $boost->amount,
+            'currency' => strtolower($boost->currency ?: 'usd'),
+            'payment_status' => $boost->payment_status,
+            'payment_method' => $boost->payment_method,
+            'paid_at' => $boost->paid_at?->toIso8601String(),
             'start_date' => $boost->start_date?->toIso8601String(),
             'end_date' => $boost->end_date?->toIso8601String(),
             'requested_at' => $boost->created_at?->toIso8601String(),

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Services\StripeService;
 use App\Support\LegalContent;
 use Illuminate\Http\Request;
 
@@ -66,6 +67,9 @@ class AppConfigController extends Controller
                 'account_deletion_url' => route('account.delete.info'),
                 'currency' => Setting::get('currency', 'USD'),
                 'currency_symbol' => Setting::get('currency_symbol', '$'),
+                // Boosts are paid in the app by card; products and services
+                // are paid outside it.
+                'boost_card_payment_enabled' => app(StripeService::class)->cardPaymentEnabled(),
             ],
         ]);
     }

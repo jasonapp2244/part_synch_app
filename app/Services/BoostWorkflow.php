@@ -15,14 +15,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
+use Stripe\Exception\ApiErrorException;
+use Stripe\PaymentIntent;
 
 /**
  * Every state change of a boost goes through here so the app API, the admin
- * panel and the scheduler cannot drift apart.
+ * panel, the Stripe webhook and the scheduler cannot drift apart.
  */
 class BoostWorkflow
 {
-    public function __construct(private BoostCapacity $capacity)
+    public function __construct(private BoostCapacity $capacity, private StripeService $stripe)
     {
     }
 
@@ -137,6 +139,81 @@ class BoostWorkflow
             ]);
         }
 
+        return $this->activate($boost, $admin, $payment, $start);
+    }
+
+    /**
+     * Record a succeeded in-app card payment and approve the boost. It goes
+     * live now, or at the position's next free slot when it is full. Safe to
+     * call twice (the app's confirm and the webhook both arrive): a boost
+     * already paid is returned unchanged.
+     */
+    public function markPaidByStripe(VendorBoost $boost, PaymentIntent $intent): VendorBoost
+    {
+        if ($intent->status !== 'succeeded'
+            || (string) ($intent->metadata['vendor_boost_id'] ?? '') !== (string) $boost->id
+            || (int) $intent->amount_received !== StripeService::minorUnits($boost)
+            || strtolower((string) $intent->currency) !== strtolower($boost->currency ?: 'usd')) {
+            throw ValidationException::withMessages(['payment' => 'This payment does not match the boost.']);
+        }
+
+        // The row lock makes the check and the write one step, so a confirm
+        // racing the webhook cannot approve (or notify) twice.
+        [$boost, $event] = DB::transaction(function () use ($boost, $intent) {
+            $boost = VendorBoost::whereKey($boost->id)->lockForUpdate()->firstOrFail();
+
+            if ($boost->payment_status === 'success') {
+                return [$boost, null];
+            }
+
+            $boost->loadMissing(['package', 'position', 'boostedProducts']);
+            $days = (int) $boost->package->duration_days;
+            $count = $boost->boostedProducts->count();
+            $start = $this->capacity->fits($boost->position, $count, now(), $days)
+                ? now()
+                : $this->capacity->nextAvailableStart($boost->position, $count, $days, now());
+
+            // Paid, but it can no longer go live (withdrawn or cancelled while
+            // the vendor was paying, or no slot will ever fit): keep the money
+            // on record and leave the boost for an admin to resolve or refund.
+            if ($boost->approval_status !== 'pending' || ! $start) {
+                $boost->update([
+                    'payment_status' => 'success',
+                    'payment_method' => 'stripe',
+                    'payment_reference' => $intent->id,
+                    'transaction_id' => $intent->id,
+                    'paid_at' => now(),
+                ]);
+                Log::warning('Stripe-paid boost could not be activated', ['vendor_boost_id' => $boost->id, 'approval_status' => $boost->approval_status]);
+
+                return [$boost, 'admin'];
+            }
+
+            $boost = $this->activate($boost, null, [
+                'method' => 'stripe',
+                'reference' => $intent->id,
+                'amount' => $intent->amount_received / 100,
+            ], $start, false);
+
+            return [$boost, $boost->status === 'scheduled' ? 'scheduled' : 'approved'];
+        });
+
+        if ($event === 'admin') {
+            $this->notifyAdmin($boost, 'admin_paid_not_live');
+        } elseif ($event) {
+            $this->notifyVendor($boost, $event);
+        }
+
+        return $boost;
+    }
+
+    /**
+     * Shared by admin approval and card payment. $admin is null when the boost
+     * was approved by its own payment.
+     */
+    private function activate(VendorBoost $boost, ?User $admin, array $payment, Carbon $start, bool $notify = true): VendorBoost
+    {
+        $days = (int) $boost->package->duration_days;
         $end = $start->copy()->addDays($days);
 
         DB::transaction(function () use ($boost, $admin, $payment, $start, $end) {
@@ -145,10 +222,11 @@ class BoostWorkflow
                 'payment_status' => 'success',
                 'payment_method' => $payment['method'],
                 'payment_reference' => $payment['reference'] ?? null,
+                'transaction_id' => $payment['method'] === 'stripe' ? $payment['reference'] : $boost->transaction_id,
                 'amount' => $payment['amount'],
                 'paid_at' => now(),
                 'admin_note' => $payment['note'] ?? null,
-                'approved_by' => $admin->id,
+                'approved_by' => $admin?->id,
                 'approved_at' => now(),
                 'start_date' => $start,
                 'end_date' => $end,
@@ -170,7 +248,9 @@ class BoostWorkflow
         });
 
         $boost->refresh();
-        $this->notifyVendor($boost, $boost->status === 'scheduled' ? 'scheduled' : 'approved');
+        if ($notify) {
+            $this->notifyVendor($boost, $boost->status === 'scheduled' ? 'scheduled' : 'approved');
+        }
 
         return $boost;
     }
@@ -203,6 +283,27 @@ class BoostWorkflow
     {
         if (! in_array($boost->status, ['pending', 'scheduled', 'active'], true)) {
             throw ValidationException::withMessages(['boost' => 'This boost is already closed.']);
+        }
+
+        // A card payment taken in the app is refunded to the card first; the
+        // boost is only marked refunded once Stripe has accepted the refund.
+        if ($refunded && $boost->payment_status === 'success' && $boost->payment_method === 'stripe' && $boost->transaction_id) {
+            try {
+                $this->stripe->refund($boost->transaction_id);
+            } catch (ApiErrorException $e) {
+                Log::error('Stripe refund failed', ['vendor_boost_id' => $boost->id, 'error' => $e->getMessage()]);
+                throw ValidationException::withMessages(['refunded' => 'Stripe did not accept the refund: ' . $e->getMessage()]);
+            }
+        }
+
+        // An unpaid request may have a card payment open in the app; close it
+        // so it can no longer be paid.
+        if ($boost->payment_status !== 'success' && str_starts_with((string) $boost->transaction_id, 'pi_')) {
+            try {
+                $this->stripe->cancelPaymentIntent($boost->transaction_id);
+            } catch (ApiErrorException $e) {
+                Log::warning('Stripe payment cancel failed', ['vendor_boost_id' => $boost->id, 'error' => $e->getMessage()]);
+            }
         }
 
         DB::transaction(function () use ($boost, $reason, $refunded) {
@@ -277,7 +378,7 @@ class BoostWorkflow
         }
     }
 
-    public function notifyAdmin(VendorBoost $boost): void
+    public function notifyAdmin(VendorBoost $boost, string $event = 'admin_new_request'): void
     {
         // config(), not env(): deploy.sh caches config, after which env() is null.
         $adminEmail = config('app.admin_email');
@@ -287,7 +388,7 @@ class BoostWorkflow
 
         try {
             $boost->loadMissing(['vendor', 'package', 'position', 'boostedProducts.product']);
-            Mail::to($adminEmail)->send(new BoostStatusMail($boost, 'admin_new_request'));
+            Mail::to($adminEmail)->send(new BoostStatusMail($boost, $event));
         } catch (\Throwable $e) {
             Log::error('Boost admin email failed', ['vendor_boost_id' => $boost->id, 'error' => $e->getMessage()]);
         }

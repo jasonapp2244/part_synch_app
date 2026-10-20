@@ -172,6 +172,26 @@
                     </div>
                 </div>
 
+                <!-- Boost Payments -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bx bx-credit-card"></i> Boost Payments</h6>
+                        <small class="text-secondary">Boosts are paid by card in the app (Stripe). Products and services are paid outside the app.</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="boost_card_payment" value="1" id="boostCardPayment" {{ $currentSettings['boost_card_payment'] ? 'checked' : '' }}>
+                            <label class="form-check-label" for="boostCardPayment">In-app card payment for boosts</label>
+                        </div>
+                        <small class="text-secondary d-block mt-1">
+                            Off: vendors send a boost request instead, you take payment outside the app and approve it under Boost Requests.
+                            @unless(app(\App\Services\StripeService::class)->isConfigured())
+                                <span class="text-danger">Stripe keys are not set on this server, so card payment is unavailable.</span>
+                            @endunless
+                        </small>
+                    </div>
+                </div>
+
                 <!-- Legal & Support -->
                 <div class="card mb-3">
                     <div class="card-header">

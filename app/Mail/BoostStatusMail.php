@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\VendorBoost;
+use App\Services\StripeService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -13,8 +14,8 @@ use Illuminate\Queue\SerializesModels;
  * pair is stored as the vendor's in-app notification, so the two never say
  * different things.
  *
- * Events: requested, admin_new_request, approved, scheduled, live,
- * ending_soon, rejected, cancelled.
+ * Events: requested, admin_new_request, admin_paid_not_live, approved,
+ * scheduled, live, ending_soon, rejected, cancelled.
  */
 class BoostStatusMail extends Mailable implements ShouldQueue
 {
@@ -40,15 +41,24 @@ class BoostStatusMail extends Mailable implements ShouldQueue
         $end = $boost->end_date?->format('M j, Y');
         $vendor = trim(($boost->vendor?->first_name ?? '') . ' ' . ($boost->vendor?->last_name ?? '')) ?: ($boost->vendor?->email ?? 'A vendor');
         $amount = strtoupper($boost->currency ?? 'usd') . ' ' . number_format((float) $boost->amount, 2);
+        $byCard = app(StripeService::class)->cardPaymentEnabled();
 
         return match ($event) {
             'requested' => [
                 'Boost request received',
-                "We received your request to boost {$products} in {$position} ({$package}). Our team will contact you by email to complete it.",
+                $byCard
+                    ? "Your request to boost {$products} in {$position} ({$package}) is ready. Pay {$amount} in the app to start it."
+                    : "We received your request to boost {$products} in {$position} ({$package}). Our team will contact you by email to complete it.",
             ],
             'admin_new_request' => [
                 "New boost request: {$vendor} - {$package}",
-                "{$vendor} requested {$package} in {$position} for {$products}. Quoted amount: {$amount}. Send payment details, then approve it in the admin panel under Boost Requests.",
+                $byCard
+                    ? "{$vendor} requested {$package} in {$position} for {$products} ({$amount}). It starts by itself once they pay by card in the app; nothing to do unless they ask for help."
+                    : "{$vendor} requested {$package} in {$position} for {$products}. Quoted amount: {$amount}. Send payment details, then approve it in the admin panel under Boost Requests.",
+            ],
+            'admin_paid_not_live' => [
+                "Paid boost needs attention: {$vendor} - {$package}",
+                "{$vendor} paid {$amount} by card for {$package} in {$position} ({$products}), but it could not go live (the request was closed, or no slot fits). Open Boost Requests to place it or refund the card.",
             ],
             'approved' => [
                 'Your boost is live',
@@ -86,7 +96,7 @@ class BoostStatusMail extends Mailable implements ShouldQueue
             'subject' => $subject,
             'body' => $body,
             'boost' => $this->boost,
-            'forAdmin' => $this->event === 'admin_new_request',
+            'forAdmin' => str_starts_with($this->event, 'admin_'),
             'appName' => config('app.name', 'Part Synch'),
         ]);
     }
