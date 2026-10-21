@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Models\CompanyProductCategoryLinks;
 
@@ -208,7 +209,13 @@ class ProductController extends Controller
                         Storage::delete($imagePath);
                     }
 
-                    $image->storeAs('product_images', $imageName);
+                    // The disk is set not to throw, so a failed write returned
+                    // false and the row below still pointed at a file that was
+                    // never there (live run 2026-10-21, L14).
+                    if ($image->storeAs('product_images', $imageName) === false) {
+                        Log::error('Product image was not saved', ['product_id' => $product->id, 'file' => $imageName]);
+                        continue;
+                    }
 
                     $productImage = new ProductImage();
                     $productImage->user_id    = Auth::id();
@@ -395,7 +402,10 @@ class ProductController extends Controller
                     $imageName = $imageHash . '_' . time() . "." . $image->getClientOriginalExtension();
                     $imagePath = 'product_images/' . $imageName;
 
-                    $image->storeAs('product_images', $imageName);
+                    if ($image->storeAs('product_images', $imageName) === false) {
+                        Log::error('Product image was not saved', ['product_id' => $product->id, 'file' => $imageName]);
+                        continue;
+                    }
                     $productImage = new ProductImage();
                     $productImage->user_id = Auth::id();
                     $productImage->product_id = $product->id;

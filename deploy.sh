@@ -48,7 +48,18 @@ say "Seeding empty legal pages"
 php artisan db:seed --class=LegalContentSeeder --force
 
 say "Linking storage"
-php artisan storage:link 2>/dev/null || true
+# public/storage must be a link to storage/app/public. On this server it was a
+# plain folder, `storage:link` quietly did nothing, and every uploaded photo
+# answered 404 (2026-10-21). Never delete it automatically: it may hold files.
+if [ -e public/storage ] && [ ! -L public/storage ]; then
+    printf '\n\033[1;31mWARNING: public/storage is a folder, not a link. Uploaded photos will 404.\033[0m\n'
+    printf 'Fix once, in this folder:\n'
+    printf '  cp -an public/storage/. storage/app/public/\n'
+    printf '  mv public/storage public/storage.old-$(date +%%Y%%m%%d)\n'
+    printf '  php artisan storage:link\n'
+else
+    php artisan storage:link 2>/dev/null || true
+fi
 
 say "Rebuilding caches"
 php artisan config:clear

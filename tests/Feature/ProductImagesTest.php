@@ -138,4 +138,18 @@ class ProductImagesTest extends TestCase
         $this->assertCount(1, $this->images());
         Storage::assertExists('product_images/' . basename($this->images()[0]));
     }
+
+    public function test_a_photo_the_disk_refused_is_not_recorded(): void
+    {
+        // The disk is set not to throw, so a failed write came back as false
+        // and the product kept a row for a file that was never written: a
+        // broken photo for every customer (live run 2026-10-21, L14).
+        $disk = \Mockery::mock(Storage::disk())->makePartial();
+        $disk->shouldReceive('putFileAs')->andReturn(false);
+        Storage::set(config('filesystems.default'), $disk);
+
+        $this->update(['product_pic' => [UploadedFile::fake()->image('front.jpg', 40, 40)]]);
+
+        $this->assertSame([], $this->images());
+    }
 }

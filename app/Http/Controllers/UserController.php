@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
@@ -83,26 +84,35 @@ class UserController extends Controller
 
             if ($request->hasFile('profile_image')) {
 
-                if ($user->profile_image) {
-                    Storage::delete('profile_images/' . $user->profile_image);
-                }
-
                 $image     = $request->file('profile_image');
                 $imageName = 'profile_' . time() . '.' . $image->getClientOriginalExtension();
-                $image->storeAs('profile_images/', $imageName);
-                $user->profile_image = $imageName;
+
+                // Save the new photo before removing the old one, and keep the
+                // old one if the write fails: the disk does not throw, so this
+                // used to record a file that was never written (L14).
+                if ($image->storeAs('profile_images', $imageName) === false) {
+                    Log::error('Profile photo was not saved', ['user_id' => $user->id]);
+                } else {
+                    if ($user->profile_image) {
+                        Storage::delete('profile_images/' . $user->profile_image);
+                    }
+                    $user->profile_image = $imageName;
+                }
             }
 
 
             if ($accountType === 'business' && $request->hasFile('business_logo')) {
-                if ($user->business_logo) {
-                    Storage::delete('business_logos/' . $user->business_logo);
-                }
-
                 $logo = $request->file('business_logo');
                 $logoName = 'business_logo_' . time() . '.' . $logo->getClientOriginalExtension();
-                $logo->storeAs('business_logos', $logoName);
-                $user->business_logo = $logoName;
+
+                if ($logo->storeAs('business_logos', $logoName) === false) {
+                    Log::error('Business logo was not saved', ['user_id' => $user->id]);
+                } else {
+                    if ($user->business_logo) {
+                        Storage::delete('business_logos/' . $user->business_logo);
+                    }
+                    $user->business_logo = $logoName;
+                }
             }
 
             $user->save();
