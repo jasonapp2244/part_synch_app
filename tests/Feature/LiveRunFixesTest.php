@@ -264,4 +264,11 @@ class LiveRunFixesTest extends TestCase
         $this->actingAs($admin)->post("/order/{$orderId}/update-status", ['order_status' => 'accept'])->assertRedirect();
         $this->assertSame([7, 7], $this->stockOf($productId));
     }
+
+    public function test_the_leftover_debug_route_is_gone(): void
+    {
+        // A store reviewer probing the site should not find developer pages.
+        $this->get('/test')->assertNotFound();
+        $this->getJson('/api/test')->assertNotFound();
+    }
 }

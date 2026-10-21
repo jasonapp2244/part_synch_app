@@ -48,10 +48,6 @@ use App\Http\Controllers\User\{
 // ────────────────────────────────
 // Test & Utility Routes
 // ────────────────────────────────
-Route::get('test', function () {
-    return response()->json(['status' => 'testings']);
-});
-
 // Maintenance helper. This runs artisan cache commands, so it must never be
 // public — admins only (role_id = 1), behind Sanctum.
 Route::middleware(['auth:sanctum', 'role:1'])->get('cache-clear', function () {
