@@ -273,6 +273,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/idInfo', [MessagesController::class, 'idFetchData'])->name('api.idInfo');
     Route::post('/fetchMessages', [MessagesController::class, 'fetch'])->name('api.fetch.messages');
     Route::get('/download/{fileName}', [MessagesController::class, 'download'])->name('api.download');
+    // The same lookup with the name in the query string. On the live host nginx
+    // serves every path ending in .jpg/.png as a static file, so
+    // /download/<name>.jpg never reached Laravel and every chat photo read
+    // "Unavailable" (live run 2026-10-22).
+    Route::get('/chat/attachment', [MessagesController::class, 'attachment'])->name('api.chat.attachment');
     Route::post('/makeSeen', [MessagesController::class, 'seen'])->name('api.messages.seen');
     Route::get('/getContacts', [MessagesController::class, 'getContacts'])->name('api.contacts.get');
     Route::post('/star', [MessagesController::class, 'favorite'])->name('api.star');

@@ -141,6 +141,15 @@ class MessagesController extends ChatifyMessagesController
     }
 
     /**
+     * `download()` with the file name in the query string (`?file=`), for hosts
+     * whose web server answers any path ending in an image extension itself.
+     */
+    public function attachment(Request $request)
+    {
+        return $this->download((string) $request->query('file', ''));
+    }
+
+    /**
      * Override: Validate user_id before starring to prevent null constraint violation.
      */
     public function favorite(Request $request)

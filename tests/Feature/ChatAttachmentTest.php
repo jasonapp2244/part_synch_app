@@ -113,4 +113,31 @@ class ChatAttachmentTest extends TestCase
     {
         $this->getJson('/api/download/' . self::FILE)->assertUnauthorized();
     }
+
+    public function test_the_query_string_lookup_answers_the_same_and_keeps_the_same_guards(): void
+    {
+        // Live, nginx answered /api/download/<name>.jpg itself with a 404, so
+        // the app now asks /api/chat/attachment?file=<name>.
+        $customer = $this->user(3);
+        $vendor = $this->user(2);
+        $this->attachmentMessage($customer, $vendor);
+
+        $this->actingAs($customer, 'sanctum')
+            ->getJson('http://192.168.1.20:8001/api/chat/attachment?file=' . self::FILE)
+            ->assertOk()
+            ->assertExactJson([
+                'file_name' => self::FILE,
+                'download_path' => 'http://192.168.1.20:8001/storage/attachments/' . self::FILE,
+            ]);
+
+        $this->actingAs($this->user(3), 'sanctum')
+            ->getJson('/api/chat/attachment?file=' . self::FILE)
+            ->assertNotFound();
+        $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/chat/attachment?file=' . rawurlencode('../.env'))
+            ->assertNotFound();
+        $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/chat/attachment')
+            ->assertNotFound();
+    }
 }
