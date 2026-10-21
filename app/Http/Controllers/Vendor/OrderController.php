@@ -126,6 +126,7 @@ class OrderController extends Controller
                 return response()->json(['message' => 'Status not updated'], 500);
             }
 
+            $order->syncStockForStatusChange($current, $order->order_status);
             $order->notifyCustomerOfStatus();
 
             DB::commit();

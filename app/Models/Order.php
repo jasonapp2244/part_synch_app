@@ -19,6 +19,40 @@ class Order extends Model
     ];
 
     /**
+     * Put the order's units back on the shelf (cancelled), or take them off
+     * again (a cancelled order reopened by the admin). Checkout takes stock
+     * from both `products.stock_quantity` and the `stocks` row, and nothing
+     * gave it back: a cancelled order left the part one short for good (live
+     * run 2026-10-21, L27).
+     */
+    public function returnStock(int $direction = 1): void
+    {
+        foreach ($this->orderItems()->get() as $item) {
+            $quantity = (int) $item->quantity * $direction;
+
+            Product::where('id', $item->product_id)->increment('stock_quantity', $quantity);
+
+            $stock = Stock::where('product_id', $item->product_id)->first();
+            if ($stock) {
+                $stock->increment('current_stock', $quantity);
+                $stock->decrement('order_placed', $quantity);
+            }
+        }
+    }
+
+    /**
+     * Keep stock right when an order moves into or out of 'cancel'.
+     */
+    public function syncStockForStatusChange(string $from, string $to): void
+    {
+        if ($from !== 'cancel' && $to === 'cancel') {
+            $this->returnStock();
+        } elseif ($from === 'cancel' && $to !== 'cancel') {
+            $this->returnStock(-1);
+        }
+    }
+
+    /**
      * How the admin pages, invoice and exports name the payment method. Orders
      * from the app carry none, because the buyer pays the seller outside the
      * app, and "N/A" read like missing data (live run 2026-10-21, L24).

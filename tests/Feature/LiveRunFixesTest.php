@@ -218,4 +218,50 @@ class LiveRunFixesTest extends TestCase
         $this->actingAs($admin)->get('/dashboard')
             ->assertOk()->assertViewHas('deliveredOrders', 1);
     }
+
+    private function stockOf(int $productId): array
+    {
+        return [
+            (int) DB::table('products')->where('id', $productId)->value('stock_quantity'),
+            (int) DB::table('stocks')->where('product_id', $productId)->value('current_stock'),
+        ];
+    }
+
+    public function test_cancelling_an_order_puts_its_stock_back(): void
+    {
+        // L27: checkout took a unit off the shelf and a cancel never returned it.
+        $productId = $this->product('Piston kit');
+        $this->addToCartWithAddress($productId);
+        $this->actingAs($this->customer)->postJson('/api/user/checkout-products')->assertOk();
+        $this->assertSame([7, 7], $this->stockOf($productId));
+
+        $orderId = (int) DB::table('orders')->where('user_id', $this->customer->id)->value('id');
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($this->vendor)->postJson('/api/vendor/order-manage', [
+            'order_id' => $orderId,
+            'order_status' => 'cancel',
+        ])->assertOk();
+
+        $this->assertSame([8, 8], $this->stockOf($productId));
+    }
+
+    public function test_the_admin_cancelling_and_reopening_keeps_stock_right(): void
+    {
+        $productId = $this->product('Gasket set');
+        $this->addToCartWithAddress($productId);
+        $this->actingAs($this->customer)->postJson('/api/user/checkout-products')->assertOk();
+        $orderId = (int) DB::table('orders')->where('user_id', $this->customer->id)->value('id');
+        $admin = $this->user(1, 'Sarah', 'Mitchell');
+        $this->app['auth']->forgetGuards();
+
+        $this->actingAs($admin)->post("/order/{$orderId}/update-status", ['order_status' => 'cancel'])->assertRedirect();
+        $this->assertSame([8, 8], $this->stockOf($productId));
+
+        // Saving the same status again must not return the stock twice.
+        $this->actingAs($admin)->post("/order/{$orderId}/update-status", ['order_status' => 'cancel'])->assertRedirect();
+        $this->assertSame([8, 8], $this->stockOf($productId));
+
+        $this->actingAs($admin)->post("/order/{$orderId}/update-status", ['order_status' => 'accept'])->assertRedirect();
+        $this->assertSame([7, 7], $this->stockOf($productId));
+    }
 }
