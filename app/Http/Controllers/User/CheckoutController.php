@@ -261,14 +261,6 @@ class CheckoutController extends Controller
                     $orderItem->load('product.productImages', 'product.company');
                     $orderItems[] = $orderItem;
 
-                    Notification::create([
-                        'user_id' => $userId,
-                        'order_id' => $order->id,
-                        'email_subject' => 'Order Placed',
-                        'email_body' => "Your order {$orderNumber} has been placed.",
-                        'status' => 'sent'
-                    ]);
-
                     $cartItem->update(['status' => 'inactive']);
 
                     if ($cartItem->product) {
@@ -281,6 +273,26 @@ class CheckoutController extends Controller
                         $stock->increment('order_placed', $cartItem->quantity);
                     }
                 }
+
+                // One notification per order, not per line item, and one for
+                // the vendor too: this is the path the app uses, and it never
+                // told the vendor in-app that an order had arrived (live run
+                // 2026-10-21, L22).
+                Notification::create([
+                    'user_id' => $userId,
+                    'order_id' => $order->id,
+                    'email_subject' => 'Order Placed',
+                    'email_body' => "Your order {$orderNumber} has been placed.",
+                    'status' => 'sent',
+                ]);
+
+                Notification::create([
+                    'vendor_id' => $vendorRecord->id,
+                    'order_id' => $order->id,
+                    'email_subject' => 'New Order Received',
+                    'email_body' => "You have received a new order {$orderNumber}.",
+                    'status' => 'sent',
+                ]);
 
                 // Calculate order totals
                 $subtotal = collect($orderItems)->sum('total_price');
@@ -418,7 +430,7 @@ class CheckoutController extends Controller
                 'company_name' => optional($product->company)->company_name,
                 'company_id' => optional($product->company)->id,
                 'vendor_id' => $vendor->id ?? null,
-                'vendor_name' => $vendor ? ($vendor->first_name . ' ' . $vendor->last_name) : 'N/A',
+                'vendor_name' => $vendor ? $vendor->sellerName() : 'N/A',
                 'stock' => [
                     'current_stock' => $currentStock,
                     'is_in_stock' => $isInStock,

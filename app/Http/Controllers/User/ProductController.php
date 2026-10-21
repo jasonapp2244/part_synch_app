@@ -36,9 +36,7 @@ class ProductController extends Controller
         $product->setRelation('user', null);
         $product->setAttribute('seller', $seller ? [
             'id' => $seller->id,
-            'name' => trim((string) $seller->business_name) !== ''
-                ? $seller->business_name
-                : trim($seller->first_name . ' ' . $seller->last_name),
+            'name' => $seller->sellerName(),
         ] : null);
 
         return $this->successResponse('Product details fetched successfully.', $product->makeHidden('user'));

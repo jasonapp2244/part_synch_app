@@ -101,6 +101,19 @@ class User extends Authenticatable
     }
 
     /**
+     * The name a customer sees a vendor by: the business, or the person when
+     * no business name was given. The product page and the cart both use it,
+     * so the same seller is not "Brooks Heavy Equipment" on one screen and
+     * "Daniel Brooks" on the next (live run 2026-10-21, L20).
+     */
+    public function sellerName(): string
+    {
+        return trim((string) $this->business_name) !== ''
+            ? $this->business_name
+            : $this->name;
+    }
+
+    /**
      * URL of the profile photo for the admin panel, or the default avatar when
      * there is none or the file has gone missing. profile_image holds a file
      * name under storage/app/public/profile_images, as the app's own uploads do.

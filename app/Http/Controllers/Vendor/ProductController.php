@@ -98,7 +98,11 @@ class ProductController extends Controller
             ]);
 
 
-            $modalNumber = strtolower(trim($request->modal_number));
+            // Lowercased for the duplicate check only; the product keeps the
+            // model number as the vendor typed it ("C18-PK-2207", not
+            // "c18-pk-2207": live run 2026-10-21, L20).
+            $typedModalNumber = trim((string) $request->modal_number);
+            $modalNumber = strtolower($typedModalNumber);
             $name = strtolower(trim($request->name));
             // $sku = strtoupper(trim($request->sku));
             // return $sku;
@@ -154,7 +158,7 @@ class ProductController extends Controller
             $product->warranty                      = $request->warranty;
             $product->description                   = $request->description;
             $product->price                         = $request->price;
-            $product->modal_number                  = $modalNumber;
+            $product->modal_number                  = $typedModalNumber;
             $product->expire_date                   = $request->expire_date;
             $product->status                        = $request->status ?? 'active';
             $product->stock_quantity                = 0;
@@ -164,7 +168,7 @@ class ProductController extends Controller
                 'company_id'     => $request->company_id,
                 'com_pro_cat_id' => $request->company_product_categories_id,
                 'product_id'     => $product->id,
-                'modal_number'   => $modalNumber,
+                'modal_number'   => $typedModalNumber,
                 'product_number' => $sku,
                 // 'custom_price'   => $request->custom_price,
                 'original_price' => $product->price,

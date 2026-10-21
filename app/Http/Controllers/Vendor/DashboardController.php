@@ -20,7 +20,11 @@ class DashboardController extends Controller
         $outOfStockProducts = Product::where('user_id', $vendorId)->where('stock_quantity', '<=', 0)->count();
 
         $totalOrders = Order::where('vendor_id', $vendorId)->count();
-        $pendingOrders = Order::where('vendor_id', $vendorId)->where('order_status', 'pending')->count();
+        // Every order still to be finished, not only ones nobody has touched:
+        // an accepted but unpaid order used to show as 0 pending (L17).
+        $pendingOrders = Order::where('vendor_id', $vendorId)
+            ->whereNotIn('order_status', ['completed', 'delivered', 'cancel'])
+            ->count();
         $completedOrders = Order::where('vendor_id', $vendorId)->whereIn('order_status', ['completed', 'delivered'])->count();
 
         $totalRevenue = (float) OrderItem::earned($vendorId)->sum('total_price');
