@@ -237,7 +237,7 @@ class AdminExports
                 'Items' => fn ($o) => $o->orderItems->count(),
                 self::money('Subtotal') => fn ($o) => round(OrderTotals::of($o)['subtotal'], 2),
                 self::money('Grand total') => fn ($o) => round(OrderTotals::of($o)['grand_total'], 2),
-                'Payment method' => fn ($o) => ucfirst($o->payment_method ?? 'N/A'),
+                'Payment method' => fn ($o) => $o->paymentMethodLabel(),
                 'Status' => fn ($o) => ucfirst(str_replace('_', ' ', (string) $o->order_status)),
                 'Date' => fn ($o) => self::date($o->created_at),
             ],

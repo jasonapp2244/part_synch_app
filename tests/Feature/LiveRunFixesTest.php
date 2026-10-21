@@ -172,4 +172,50 @@ class LiveRunFixesTest extends TestCase
 
         $this->assertDatabaseHas('products', ['name' => 'CAT C18 Piston Kit', 'modal_number' => 'C18-PK-2207']);
     }
+
+    public function test_saving_the_name_from_the_app_does_not_leave_a_stale_last_name(): void
+    {
+        $this->customer->update(['last_name' => 'Reed']);
+
+        $this->actingAs($this->customer)->postJson('/api/update_profile', [
+            'first_name' => 'Michael Reed',
+            'phone_number' => '5550101021',
+        ])->assertOk();
+
+        $fresh = $this->customer->fresh();
+        $this->assertSame('Michael Reed', $fresh->first_name);
+        $this->assertNull($fresh->last_name, 'the app sends the whole name in one field (L23)');
+    }
+
+    public function test_an_order_paid_outside_the_app_is_labelled_so_in_the_admin(): void
+    {
+        $admin = $this->user(1, 'Sarah', 'Mitchell');
+        $orderId = DB::table('orders')->insertGetId([
+            'user_id' => $this->customer->id,
+            'vendor_id' => $this->vendor->id,
+            'order_number' => '#ORD-OUTSIDE',
+            'order_status' => 'payment',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('orders')->insert([
+            'user_id' => $this->customer->id,
+            'vendor_id' => $this->vendor->id,
+            'order_number' => '#ORD-DONE',
+            'order_status' => 'completed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->get("/order/{$orderId}")
+            ->assertOk()->assertSee('Paid outside the app');
+
+        // L25: a paid order is not a completed one, on either admin page.
+        $this->actingAs($admin)->get('/earning-records')
+            ->assertOk()
+            ->assertSee('Paid outside the app')
+            ->assertViewHas('completedOrders', 1);
+        $this->actingAs($admin)->get('/dashboard')
+            ->assertOk()->assertViewHas('deliveredOrders', 1);
+    }
 }

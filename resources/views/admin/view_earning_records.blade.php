@@ -121,7 +121,7 @@
                                     <td><span class="fw-bold">{{ $order->order_number ?? 'N/A' }}</span></td>
                                     <td>{{ $order->orderItems->count() }}</td>
                                     <td><span class="fw-bold">${{ number_format($order->orderItems->sum('total_price'), 2) }}</span></td>
-                                    <td>{{ ucfirst($order->payment_method ?? 'N/A') }}</td>
+                                    <td>{{ $order->paymentMethodLabel() }}</td>
                                     <td>
                                         @php
                                             $statusColors = [

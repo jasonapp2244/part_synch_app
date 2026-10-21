@@ -19,6 +19,18 @@ class Order extends Model
     ];
 
     /**
+     * How the admin pages, invoice and exports name the payment method. Orders
+     * from the app carry none, because the buyer pays the seller outside the
+     * app, and "N/A" read like missing data (live run 2026-10-21, L24).
+     */
+    public function paymentMethodLabel(): string
+    {
+        $method = trim((string) $this->payment_method);
+
+        return $method === '' ? 'Paid outside the app' : ucfirst(str_replace('_', ' ', $method));
+    }
+
+    /**
      * Tell the customer in-app that their order moved on. Email alone could
      * go unread or never arrive.
      */

@@ -22,7 +22,10 @@ class EarningController extends Controller
         $totalOrders = $orders->count();
         $totalRevenue = OrderItem::earned()->sum('total_price');
         $pendingOrders = $orders->where('order_status', 'pending')->count();
-        $completedOrders = $orders->whereIn('order_status', ['delivered', 'payment', 'completed'])->count();
+        // Same meaning as the dashboard and the vendor app. A paid order is not
+        // finished, and counting it here made this page say 3 where the
+        // dashboard said 1 (live run 2026-10-21, L25).
+        $completedOrders = $orders->whereIn('order_status', ['completed', 'delivered'])->count();
 
         return view('admin.view_earning_records', compact(
             'orders', 'totalOrders', 'totalRevenue', 'pendingOrders', 'completedOrders'

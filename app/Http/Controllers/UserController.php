@@ -61,6 +61,11 @@ class UserController extends Controller
             // $user = User::where('id', auth()->user()->id)->first();
 
             $user->first_name   = $request->first_name;
+            // The app has one name field, filled with first and last name
+            // together; keeping the old last name would show it twice (L23).
+            if ($request->has('first_name')) {
+                $user->last_name = null;
+            }
             $user->web_token   = $request->web_token;
             $user->phone_number = $request->phone_number;
             $user->address      = $request->address;

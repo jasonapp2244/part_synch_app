@@ -47,7 +47,7 @@
                                 </div>
                                 <div class="col-md-4">
                                     <strong>Payment Method:</strong><br>
-                                    {{ ucfirst($order->payment_method ?? 'N/A') }}
+                                    {{ $order->paymentMethodLabel() }}
                                 </div>
                                 <div class="col-md-4">
                                     <strong>Delivery Date:</strong><br>

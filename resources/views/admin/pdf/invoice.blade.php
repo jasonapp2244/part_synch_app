@@ -48,7 +48,7 @@
                 <table class="meta" style="width: auto; margin-left: auto; margin-top: 6px;">
                     <tr><td>Invoice no.</td><td><strong>{{ $order->order_number ?? $order->id }}</strong></td></tr>
                     <tr><td>Order date</td><td>{{ $order->created_at ? $order->created_at->format('d M Y') : 'N/A' }}</td></tr>
-                    <tr><td>Payment</td><td>{{ ucfirst($order->payment_method ?? 'N/A') }}</td></tr>
+                    <tr><td>Payment</td><td>{{ $order->paymentMethodLabel() }}</td></tr>
                     <tr><td>Status</td><td><span class="status">{{ ucfirst(str_replace('_', ' ', (string) $order->order_status)) }}</span></td></tr>
                     @if($order->delivery_date)
                         <tr><td>Delivered</td><td>{{ \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') }}</td></tr>
