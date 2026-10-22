@@ -329,6 +329,36 @@ class ProductController extends Controller
                 }
             }
 
+            // `new_stock` can only add. `set_stock` is the count the vendor
+            // actually has, so a stock count can be corrected downwards from
+            // the app (phone run 2026-10-22); the app sends it only to lower.
+            if ($request->filled('set_stock')) {
+                $setStock = filter_var($request->input('set_stock'), FILTER_VALIDATE_INT);
+
+                if ($setStock === false || $setStock < 0) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'Stock quantity must be a whole number, 0 or more.',
+                    ], 422);
+                }
+
+                $previous = (int) $product->stock_quantity;
+                $wasOut = $previous <= 0;
+                $product->stock_quantity = $setStock;
+                $product->save();
+
+                $stock = Stock::firstOrNew(['product_id' => $product->id]);
+                $stock->previous_stock   = $previous;
+                $stock->quantity_changed = $setStock - $previous;
+                $stock->current_stock    = $setStock;
+                $stock->change_type      = 'stock_adjustment';
+                $stock->save();
+
+                if ($wasOut && $setStock > 0) {
+                    $product->notifyBackInStock();
+                }
+            }
+
             $link = CompanyProductCategoryLinks::where('product_id', $product->id)
                 ->where('company_id', $request->company_id)
                 ->where('com_pro_cat_id', $request->company_product_categories_id)
@@ -347,7 +377,10 @@ class ProductController extends Controller
             // $link->product_number        = $request->product_number       ?? $link->product_number;
             $link->custom_price          = $request->custom_price         ?? $link->custom_price;
             $link->original_price        = $request->price                ?? $link->original_price;
-            $link->stock_quantity        = $request->new_stock            ?? $link->stock_quantity;
+            // The product's real count. This used to copy `new_stock` — the
+            // amount *added* — so the home feed, which reads this column, showed
+            // "2 in stock" after a restock of two onto ten.
+            $link->stock_quantity        = (int) $product->stock_quantity;
             $link->warranty              = $request->warranty             ?? $link->warranty;
             $link->discount              = $request->discount             ?? $link->discount;
             $link->discount_expire_date  = $request->discount_expire_date ?? $link->discount_expire_date;

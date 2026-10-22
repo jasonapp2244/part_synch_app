@@ -154,6 +154,70 @@ class LiveRunFixesTest extends TestCase
         $this->assertStringContainsString('"vendor_name":"Brooks Heavy Equipment"', json_encode($cart));
     }
 
+    public function test_saved_items_name_the_seller_the_way_the_product_page_does(): void
+    {
+        // L35 (live run 2026-10-22): Saved Items read "Daniel Brooks" under a
+        // product whose page says "Sold by Brooks Heavy Equipment".
+        $productId = $this->product('Piston kit');
+
+        $this->actingAs($this->customer)
+            ->postJson('/api/user/store-wishlist', ['type' => 'product', 'product_id' => $productId])
+            ->assertSuccessful();
+
+        $this->actingAs($this->customer)->getJson('/api/user/wishlist')
+            ->assertOk()
+            ->assertJsonPath('data.0.product_id', $productId)
+            ->assertJsonPath('data.0.vendor_name', 'Brooks Heavy Equipment');
+    }
+
+    /** The pivot row Add product writes; editing expects to find it. */
+    private function link(int $productId): void
+    {
+        DB::table('company_product_category_links')->insert([
+            'product_id'     => $productId,
+            'stock_quantity' => 8,
+            'created_at'     => now(),
+            'updated_at'     => now(),
+        ]);
+    }
+
+    public function test_a_vendor_can_correct_stock_downwards(): void
+    {
+        // Phone run 2026-10-22: `new_stock` only adds, so the app had to tell
+        // a vendor with 15 on the shelf and 5 in hand to contact support.
+        $productId = $this->product('Piston kit');
+        $this->link($productId);
+
+        $this->actingAs($this->vendor)
+            ->postJson("/api/vendor/update_product/{$productId}", ['set_stock' => 5])
+            ->assertOk()
+            ->assertJsonPath('data.stock_quantity', 5);
+
+        $this->assertSame(5, (int) DB::table('products')->where('id', $productId)->value('stock_quantity'));
+        $this->assertSame(5, (int) DB::table('stocks')->where('product_id', $productId)->value('current_stock'));
+        // The home feed reads the count from the pivot row.
+        $this->assertSame(5, (int) DB::table('company_product_category_links')->where('product_id', $productId)->value('stock_quantity'));
+    }
+
+    public function test_set_stock_refuses_a_negative_count_and_old_new_stock_still_adds(): void
+    {
+        $productId = $this->product('Piston kit');
+        $this->link($productId);
+
+        $this->actingAs($this->vendor)
+            ->postJson("/api/vendor/update_product/{$productId}", ['set_stock' => -1])
+            ->assertStatus(422);
+        $this->assertSame(8, (int) DB::table('products')->where('id', $productId)->value('stock_quantity'));
+
+        // Builds already in vendors' hands send `new_stock`; it must keep adding.
+        $this->actingAs($this->vendor)
+            ->postJson("/api/vendor/update_product/{$productId}", ['new_stock' => 2])
+            ->assertOk();
+        $this->assertSame(10, (int) DB::table('products')->where('id', $productId)->value('stock_quantity'));
+        // Not the 2 that was added.
+        $this->assertSame(10, (int) DB::table('company_product_category_links')->where('product_id', $productId)->value('stock_quantity'));
+    }
+
     public function test_a_seller_without_a_business_name_is_shown_by_name(): void
     {
         $this->vendor->update(['business_name' => null]);

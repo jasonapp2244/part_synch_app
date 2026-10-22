@@ -134,7 +134,8 @@ class WishlistController extends Controller
                     'product_name' => $item->product->name ?? 'N/A',
                     'product_price' => $item->product->price ?? 0,
                     'product_image' => $item->product->productImages->first()->image_url ?? null,
-                    'vendor_name' => $item->product->user->first_name ?? 'N/A',
+                    // Same name the product page and the cart use (L35).
+                    'vendor_name' => $item->product->user?->sellerName() ?? 'N/A',
                     'stock_quantity' => $item->product->stock_quantity ?? 0,
                     'is_active' => $item->product->is_active,
                     'created_at' => $item->created_at,
@@ -145,7 +146,7 @@ class WishlistController extends Controller
                     'wishlist_id' => $item->id,
                     'type' => 'vendor',
                     'vendor_id' => $item->vendor_id,
-                    'vendor_name' => $vendor->first_name ?? 'N/A',
+                    'vendor_name' => $vendor?->sellerName() ?? 'N/A',
                     'vendor_business' => $vendor->business_type ?? 'N/A',
                     'vendor_image' => $vendor->profile_image ?? null,
                     'created_at' => $item->created_at,
