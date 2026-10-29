@@ -8,6 +8,7 @@ use App\Models\Product;
 use Illuminate\Support\Str;
 use App\Models\ProductImage;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\URL;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -94,8 +95,14 @@ class ProductController extends Controller
                 'expire_date'                   => 'nullable|date',
                 'new_stock'                     => 'nullable|numeric|min:0',
                 'status'                        => 'nullable|in:active,inactive',
-                'product_pic'                   => 'nullable|array',
+                // A listing with no photo shows customers a grey box; the app
+                // already insists on one, and this keeps older builds and
+                // direct API calls to the same rule.
+                'product_pic'                   => 'required|array|min:1',
                 'product_pic.*'                 => 'image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            ], [
+                'product_pic.required' => 'Add at least one product photo.',
+                'product_pic.min'      => 'Add at least one product photo.',
             ]);
 
 
@@ -251,6 +258,14 @@ class ProductController extends Controller
                 'product_images' => $uploadedImages,
                 'boost_info'     => $boostInfo,
             ], 201);
+        } catch (ValidationException $e) {
+            // Caught by the generic handler below, a missing field used to
+            // come back as a 500 "Something went wrong!".
+            return response()->json([
+                'status'  => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'The product could not be saved.',
+                'errors'  => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => false,
@@ -276,6 +291,29 @@ class ProductController extends Controller
                     'status'  => false,
                     'message' => 'You are not authorized to update this product.',
                 ], 403);
+            }
+
+            // Photos named in `remove_images[]`, by file name. Worked out before
+            // anything is saved so an update that would strip the listing of
+            // its last photo is refused whole rather than half-applied.
+            $removeNames = collect((array) $request->input('remove_images', []))
+                ->filter(fn ($url) => is_string($url) && $url !== '')
+                ->map(fn ($url) => basename(parse_url($url, PHP_URL_PATH) ?? ''))
+                ->filter()
+                ->all();
+
+            if ($removeNames !== []) {
+                $kept = ProductImage::where('product_id', $product->id)->get()
+                    ->reject(fn ($img) => in_array(basename(parse_url($img->image_url, PHP_URL_PATH) ?? ''), $removeNames, true))
+                    ->count();
+                $adding = count((array) $request->file('product_pic', []));
+
+                if ($kept + $adding === 0) {
+                    return response()->json([
+                        'status'  => false,
+                        'message' => 'A product needs at least one photo. Add a new photo before removing the last one.',
+                    ], 422);
+                }
             }
 
             // user_id is the owning vendor and is fixed at creation. It is never
@@ -407,12 +445,6 @@ class ProductController extends Controller
             // was never removed here (device run 2026-10-20).
             $uploadedImages = [];
             $existingImages = ProductImage::where('product_id', $id)->get();
-
-            $removeNames = collect((array) $request->input('remove_images', []))
-                ->filter(fn ($url) => is_string($url) && $url !== '')
-                ->map(fn ($url) => basename(parse_url($url, PHP_URL_PATH) ?? ''))
-                ->filter()
-                ->all();
 
             foreach ($existingImages as $existingImage) {
                 if (in_array(basename(parse_url($existingImage->image_url, PHP_URL_PATH) ?? ''), $removeNames, true)) {

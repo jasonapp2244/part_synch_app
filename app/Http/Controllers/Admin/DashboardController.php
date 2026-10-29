@@ -8,10 +8,12 @@ use App\Models\Company;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ServiceRequest;
 use App\Models\SubCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
@@ -32,6 +34,12 @@ class DashboardController extends Controller
         $paymentOrders = Order::where('order_status', 'payment')->count();
         $deliveredOrders = Order::whereIn('order_status', ['completed', 'delivered'])->count();
         $cancelledOrders = Order::where('order_status', 'cancel')->count();
+
+        // Service requests still waiting on someone (same count as the sidebar
+        // badge). Zero on a host that has not run the Services migrations yet.
+        $openServiceRequests = Schema::hasTable('service_requests')
+            ? ServiceRequest::whereIn('status', ServiceRequest::OPEN)->count()
+            : 0;
 
         // Monthly revenue for bar chart (last 6 months)
         $monthlyRevenue = OrderItem::earned()
@@ -65,7 +73,7 @@ class DashboardController extends Controller
             'totalOrders', 'totalRevenue', 'totalVendors', 'activeVendors',
             'totalCustomers', 'activeCustomers', 'totalProducts', 'recentOrders',
             'totalCategories', 'totalCompanies',
-            'pendingOrders', 'paymentOrders', 'deliveredOrders', 'cancelledOrders',
+            'pendingOrders', 'paymentOrders', 'deliveredOrders', 'cancelledOrders', 'openServiceRequests',
             'chartLabels', 'chartData', 'topVendors'
         ));
     }

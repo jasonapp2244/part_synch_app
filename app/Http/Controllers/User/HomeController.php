@@ -191,9 +191,15 @@ class HomeController extends Controller
         ]);
     }
 
+    /**
+     * The sellers directory. Same public columns as the home feed's sellers
+     * strip: this returned each vendor's whole row, push token and private
+     * address included (BCR-22).
+     */
     public function viewMoreVendors()
     {
-        $vendors = User::where('role_id', 2)->where('status', 'active')
+        $vendors = User::select('id', 'vendor_type_id', 'business_name', 'business_type', 'business_description', 'business_license', 'business_logo', 'first_name')
+            ->where('role_id', 2)->where('status', 'active')
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
@@ -241,7 +247,6 @@ class HomeController extends Controller
                 'price'            => $link->custom_price,
                 'stock_quantity'   => $link->stock_quantity,
                 'vendor_name'      => $link->user->first_name ?? null,
-                'vendor_email'     => $link->user->email ?? null,
                 'images'           => $link->product->productImages->pluck('image_url'),
             ];
         });
@@ -249,14 +254,28 @@ class HomeController extends Controller
         return response()->json($data);
     }
 
+    /**
+     * One seller's catalogue, for their page in the app.
+     *
+     * Rows carry `id`, `name` and `product_images` in the home feed's shape so
+     * each one can be opened (BCR-21); the older keys stay for existing
+     * callers. Only active listings of an active vendor account are listed,
+     * the same rule as the feed.
+     */
     public function viewMoreProductRelatedVendor(Request $request, $vendorId = NULL)
     {
         $products = Product::with('productImages')
             ->where('user_id', $vendorId)
+            ->where('status', 'active')
+            ->whereHas('user', fn ($query) => $query->where('role_id', 2)->where('status', 'active'))
+            ->orderByDesc('created_at')
             ->paginate(20);
 
         $data = $products->through(function ($product) {
             return [
+                'id'               => $product->id,
+                'name'             => $product->name,
+                'product_images'   => $product->productImages->map(fn ($image) => ['image_url' => $image->image_url])->values(),
                 'product_name'     => $product->name,
                 'description'      => $product->description,
                 'modal_number'     => $product->modal_number,

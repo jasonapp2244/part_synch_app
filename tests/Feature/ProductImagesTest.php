@@ -127,6 +127,72 @@ class ProductImagesTest extends TestCase
         Storage::assertExists('product_images/' . basename($side));
     }
 
+    public function test_a_new_product_needs_at_least_one_photo(): void
+    {
+        // Refused as a 422 naming the photo, not the 500 "Something went
+        // wrong!" every add_product validation error used to come back as.
+        $this->actingAs($this->vendor)
+            ->post('/api/vendor/add_product', [
+                'name' => 'Oil filter',
+                'price' => 12.5,
+                'modal_number' => 'OF-100',
+            ], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJson(['status' => false, 'message' => 'Add at least one product photo.']);
+
+        $this->assertDatabaseMissing('products', ['modal_number' => 'OF-100']);
+    }
+
+    public function test_a_new_product_with_a_photo_is_saved_with_it(): void
+    {
+        $id = $this->actingAs($this->vendor)
+            ->post('/api/vendor/add_product', [
+                'name' => 'Oil filter',
+                'price' => 12.5,
+                'modal_number' => 'OF-100',
+                'product_pic' => [UploadedFile::fake()->image('oil.jpg', 40, 40)],
+            ], ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->assertSame(1, DB::table('product_images')->where('product_id', $id)->count());
+    }
+
+    public function test_the_last_photo_cannot_be_removed(): void
+    {
+        $this->update(['product_pic' => [UploadedFile::fake()->image('front.jpg', 40, 40)]]);
+        [$only] = $this->images();
+
+        $this->actingAs($this->vendor)
+            ->post("/api/vendor/update_product/{$this->productId}", [
+                'remove_images' => [$only],
+                'price' => 99,
+                'company_id' => $this->companyId,
+                'company_product_categories_id' => $this->productCategoryId,
+            ], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJson(['status' => false]);
+
+        $this->assertSame([$only], $this->images());
+        Storage::assertExists('product_images/' . basename($only));
+        $this->assertEquals(47, DB::table('products')->where('id', $this->productId)->value('price'),
+            'a refused update changes nothing');
+    }
+
+    public function test_the_last_photo_can_be_swapped_for_a_new_one(): void
+    {
+        $this->update(['product_pic' => [UploadedFile::fake()->image('front.jpg', 40, 40)]]);
+        [$old] = $this->images();
+
+        $this->update([
+            'remove_images' => [$old],
+            'product_pic' => [UploadedFile::fake()->image('new.jpg', 60, 60)],
+        ]);
+
+        $this->assertCount(1, $this->images());
+        $this->assertNotSame($old, $this->images()[0]);
+    }
+
     public function test_the_same_picture_twice_is_stored_once_and_still_loads(): void
     {
         $photo = UploadedFile::fake()->image('front.jpg', 40, 40);

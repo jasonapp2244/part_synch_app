@@ -49,6 +49,9 @@ Route::get('/download/app/file', [AppDownloadController::class, 'file'])->name('
 | Admin Authentication (guest)
 |--------------------------------------------------------------------------
 */
+// The bare host used to 404. Send visitors to the sign-in page, which
+// forwards a signed-in admin on to the dashboard.
+Route::redirect('/', '/login');
 Route::get('/login', [AuthController::class, 'showLogin'])->name('admin.login');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth')->name('admin.login.submit');
 Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');

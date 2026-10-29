@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -227,12 +229,15 @@ class LiveRunFixesTest extends TestCase
 
     public function test_the_model_number_is_kept_as_typed(): void
     {
-        $this->actingAs($this->vendor)->postJson('/api/vendor/add_product', [
+        Storage::fake();
+
+        $this->actingAs($this->vendor)->post('/api/vendor/add_product', [
             'name' => 'CAT C18 Piston Kit',
             'price' => 349.99,
             'modal_number' => 'C18-PK-2207',
             'new_stock' => 25,
-        ])->assertCreated();
+            'product_pic' => [UploadedFile::fake()->image('piston.jpg', 40, 40)],
+        ], ['Accept' => 'application/json'])->assertCreated();
 
         $this->assertDatabaseHas('products', ['name' => 'CAT C18 Piston Kit', 'modal_number' => 'C18-PK-2207']);
     }

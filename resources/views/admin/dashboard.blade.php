@@ -171,7 +171,7 @@
             </div><!--end row-->
 
             <!-- Quick Stats Row -->
-            <div class="row row-cols-1 row-cols-md-3 row-cols-xl-5 mb-2">
+            <div class="row row-cols-1 row-cols-md-3 row-cols-xl-6 mb-2">
                 <div class="col">
                     <div class="card radius-10 border-start border-0 border-4 border-info">
                         <div class="card-body p-3">
@@ -237,6 +237,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="col">
+                    <div class="card radius-10 border-start border-0 border-4 border-secondary position-relative">
+                        <div class="card-body p-3">
+                            <div class="d-flex align-items-center">
+                                <div class="widgets-icons rounded-circle bg-light-secondary text-secondary"><i class='bx bx-wrench'></i></div>
+                                <div class="ms-3">
+                                    <h6 class="mb-0">{{ $openServiceRequests }}</h6>
+                                    <a href="{{ route('admin.service.requests') }}" class="mb-0 font-13 text-muted stretched-link">Open service requests</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Bottom Row: Recent Orders + Top Vendors -->
@@ -275,7 +288,7 @@
                                             <td>${{ number_format($order->orderItems->sum('total_price'), 2) }}</td>
                                             <td>
                                                 @if(in_array($order->order_status, ['completed', 'delivered'], true))
-                                                    <span class="badge bg-gradient-quepal text-white shadow-sm w-100 rounded-pill">{{ ucfirst($order->order_status) }}</span>
+                                                    <span class="badge bg-gradient-quepal text-white shadow-sm w-100 rounded-pill">{{ ucfirst(str_replace('_', ' ', $order->order_status)) }}</span>
                                                 @elseif($order->order_status === 'pending')
                                                     <span class="badge bg-gradient-blooker text-white shadow-sm w-100 rounded-pill">Pending</span>
                                                 @elseif($order->order_status === 'payment')
@@ -283,7 +296,7 @@
                                                 @elseif($order->order_status === 'cancel')
                                                     <span class="badge bg-gradient-bloody text-white shadow-sm w-100 rounded-pill">Cancelled</span>
                                                 @else
-                                                    <span class="badge bg-secondary text-white shadow-sm w-100 rounded-pill">{{ ucfirst($order->order_status) }}</span>
+                                                    <span class="badge bg-secondary text-white shadow-sm w-100 rounded-pill">{{ ucfirst(str_replace('_', ' ', $order->order_status)) }}</span>
                                                 @endif
                                             </td>
                                             <td>{{ $order->created_at ? $order->created_at->format('d M Y') : 'N/A' }}</td>

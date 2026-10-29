@@ -75,6 +75,15 @@ class AdminAuthPagesTest extends TestCase
             ->assertSee('Please sign in to continue.');
     }
 
+    public function test_the_bare_host_opens_the_sign_in_page_or_the_dashboard(): void
+    {
+        $this->get('/')->assertRedirect('/login');
+        $this->get('/login')->assertOk();
+
+        $this->actingAs($this->user(1, 'admin@example.com'));
+        $this->get('/login')->assertRedirect(route('admin.dashboard'));
+    }
+
     public function test_an_admin_signs_in_and_a_wrong_password_is_refused(): void
     {
         $this->user(1, 'admin@example.com', 'right-password-1');

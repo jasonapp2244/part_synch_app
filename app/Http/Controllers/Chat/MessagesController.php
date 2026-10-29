@@ -67,11 +67,9 @@ class MessagesController extends ChatifyMessagesController
     {
         $data = parent::getContacts($request)->getData(true);
         $blockedIds = UserBlock::idsFor(Auth::id());
-        $allowed = array_flip(self::CONTACT_FIELDS);
-
         $contacts = is_array($data['contacts'] ?? null) ? $data['contacts'] : [];
         $data['contacts'] = array_values(array_map(
-            fn ($contact) => array_intersect_key($contact, $allowed),
+            fn ($contact) => self::publicContact($contact),
             array_filter($contacts, fn ($contact) => ! in_array($contact['id'] ?? null, $blockedIds))
         ));
 
@@ -79,25 +77,34 @@ class MessagesController extends ChatifyMessagesController
     }
 
     /**
-     * Override: Search users by first_name/last_name instead of 'name'.
+     * Override: search people to message by first or last name.
+     *
+     * Chatify's version returned the whole `users` row of anyone matching a
+     * single letter — email, phone, home address, coordinates and push tokens
+     * included, admins included. Results now carry only the contact fields,
+     * never list admins, suspended accounts or blocked users, and a customer
+     * finds sellers only: buyers have no reason to look each other up.
      */
     public function search(Request $request)
     {
-        $input = trim(filter_var($request['input']));
+        $input = trim((string) filter_var($request['input']));
+        $me = Auth::user();
 
-        $records = User::where('id', '!=', Auth::user()->id)
-            ->whereNotIn('id', UserBlock::idsFor(Auth::id()))
+        $records = User::where('id', '!=', $me->id)
+            ->whereNotIn('id', UserBlock::idsFor($me->id))
+            ->where('status', 'active')
+            ->whereIn('role_id', (int) $me->role_id === 3 ? [2] : [2, 3])
             ->where(function ($q) use ($input) {
                 $q->where('first_name', 'LIKE', "%{$input}%")
                   ->orWhere('last_name', 'LIKE', "%{$input}%")
+                  ->orWhere('business_name', 'LIKE', "%{$input}%")
                   ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$input}%"]);
             })
             ->paginate($request->per_page ?? $this->perPage);
 
         $items = [];
         foreach ($records->items() as $record) {
-            $userData = Chatify::getUserWithAvatar($record);
-            $items[] = $userData;
+            $items[] = self::publicContact(Chatify::getUserWithAvatar($record)->toArray());
         }
 
         return Response::json([
@@ -105,6 +112,29 @@ class MessagesController extends ChatifyMessagesController
             'total' => $records->total(),
             'last_page' => $records->lastPage(),
         ], 200);
+    }
+
+    /**
+     * Override: the favourites list carried each starred user's whole row,
+     * the same leak as search. Only the contact fields go out.
+     */
+    public function getFavorites(Request $request)
+    {
+        $data = parent::getFavorites($request)->getData(true);
+        $data['favorites'] = array_map(function ($favorite) {
+            if (is_array($favorite['user'] ?? null)) {
+                $favorite['user'] = self::publicContact($favorite['user']);
+            }
+
+            return $favorite;
+        }, is_array($data['favorites'] ?? null) ? $data['favorites'] : []);
+
+        return Response::json($data, 200);
+    }
+
+    private static function publicContact(array $user): array
+    {
+        return array_intersect_key($user, array_flip(self::CONTACT_FIELDS));
     }
 
     /**

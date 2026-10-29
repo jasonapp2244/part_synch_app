@@ -42,7 +42,17 @@ class OrderController extends Controller
                 'da.address_line2',
                 'da.city',
                 'o.order_status',
-                'o.delivery_date'
+                'o.delivery_date',
+                // Added for the app's order detail screen; existing keys above
+                // are unchanged so older app builds parse the response as before.
+                'o.created_at as placed_at',
+                'o.shipping_charges',
+                'oi.price as unit_price',
+                'da.full_name',
+                'da.phone_number',
+                'da.state',
+                'da.postal_code',
+                'da.country'
             )
             ->orderBy('o.created_at', 'desc')
             ->get();

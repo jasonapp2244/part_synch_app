@@ -34,6 +34,9 @@ class BoostStatusMail extends Mailable implements ShouldQueue
     public static function summary(VendorBoost $boost, string $event): array
     {
         $package = $boost->package?->name ?? 'Boost';
+        // "Your Weekly Boost boost is live" read oddly: the packages are
+        // named "… Boost" already, so the word is only added when missing.
+        $boostName = preg_match('/boost$/i', $package) ? $package : "{$package} boost";
         $position = $boost->position?->name ?? 'the home page';
         $count = $boost->boostedProducts?->count() ?? 0;
         $products = $count === 1 ? '1 product' : "{$count} products";
@@ -62,19 +65,19 @@ class BoostStatusMail extends Mailable implements ShouldQueue
             ],
             'approved' => [
                 'Your boost is live',
-                "Your {$package} boost is live in {$position} for {$products} until {$end}.",
+                "Your {$boostName} is live in {$position} for {$products} until {$end}.",
             ],
             'scheduled' => [
                 'Your boost is scheduled',
-                "Your {$package} boost is approved. {$position} is fully booked until then, so it starts on {$start} and runs until {$end}.",
+                "Your {$boostName} is approved. {$position} is fully booked until then, so it starts on {$start} and runs until {$end}.",
             ],
             'live' => [
                 'Your boost has started',
-                "Your {$package} boost is now live in {$position} for {$products} until {$end}.",
+                "Your {$boostName} is now live in {$position} for {$products} until {$end}.",
             ],
             'ending_soon' => [
                 'Your boost ends soon',
-                "Your {$package} boost in {$position} ends on {$end}. Request a new boost in the app to keep your products featured.",
+                "Your {$boostName} in {$position} ends on {$end}. Request a new boost in the app to keep your products featured.",
             ],
             'rejected' => [
                 'Boost request not approved',
@@ -82,9 +85,9 @@ class BoostStatusMail extends Mailable implements ShouldQueue
             ],
             'cancelled' => [
                 'Boost cancelled',
-                "Your {$package} boost in {$position} was cancelled" . ($boost->rejection_reason ? ": {$boost->rejection_reason}" : '.'),
+                "Your {$boostName} in {$position} was cancelled" . ($boost->rejection_reason ? ": {$boost->rejection_reason}" : '.'),
             ],
-            default => ['Boost update', "Your {$package} boost was updated."],
+            default => ['Boost update', "Your {$boostName} was updated."],
         };
     }
 

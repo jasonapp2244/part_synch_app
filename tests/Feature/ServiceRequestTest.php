@@ -300,6 +300,20 @@ class ServiceRequestTest extends TestCase
         $this->assertDatabaseHas('notifications', ['vendor_id' => $this->vendor->id, 'service_request_id' => $id, 'email_subject' => 'Service request cancelled']);
     }
 
+    public function test_the_dashboard_counts_open_service_requests_and_links_to_them(): void
+    {
+        $this->request($this->service())->assertCreated();
+        $this->request($this->service(['title' => 'Battery check']))->assertCreated();
+        ServiceRequest::latest('id')->firstOrFail()->update(['status' => 'completed']);
+        $admin = $this->user(1, 'Sarah', 'Mitchell');
+
+        $this->actingAs($admin)->get('/dashboard')
+            ->assertOk()
+            ->assertViewHas('openServiceRequests', 1)
+            ->assertSee('Open service requests')
+            ->assertSee(route('admin.service.requests'), false);
+    }
+
     public function test_the_admin_can_switch_a_service_off(): void
     {
         $serviceId = $this->service();
