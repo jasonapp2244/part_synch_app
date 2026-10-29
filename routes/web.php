@@ -19,7 +19,9 @@ use App\Http\Controllers\Admin\{
     BoostPackageController,
     BoostRequestController,
     ReportController,
-    ReviewController
+    ReviewController,
+    ServiceController,
+    ServiceRequestController
 };
 
 use App\Http\Controllers\PublicPageController;
@@ -145,6 +147,12 @@ Route::middleware('admin')->group(function () {
     Route::get('/reviews', [ReviewController::class, 'index'])->name('admin.reviews');
     Route::post('/review/{id}/status', [ReviewController::class, 'updateStatus'])->name('admin.reviews.status');
     Route::delete('/review/{id}', [ReviewController::class, 'destroy'])->name('admin.reviews.destroy');
+
+    // Services vendors offer, and customers' requests for them
+    Route::get('/services', [ServiceController::class, 'index'])->name('admin.services');
+    Route::post('/service/{id}/toggle-status', [ServiceController::class, 'toggleStatus'])->whereNumber('id')->name('admin.services.toggle');
+    Route::get('/service-requests', [ServiceRequestController::class, 'index'])->name('admin.service.requests');
+    Route::post('/service-request/{id}/cancel', [ServiceRequestController::class, 'cancel'])->whereNumber('id')->name('admin.service.requests.cancel');
 
     // PDF / Excel download of any admin list (keys in App\Support\AdminExports)
     Route::get('/export/{list}.{format}', [ExportController::class, 'download'])

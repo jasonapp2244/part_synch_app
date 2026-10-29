@@ -10,6 +10,7 @@ class Notification extends Model
         'user_id',
         'vendor_id',
         'order_id',
+        'service_request_id',
         'payment_id',
         'vendor_payment_id',
         'discount_id',

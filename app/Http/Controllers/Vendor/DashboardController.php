@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Vendor;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\ServiceRequest;
 use App\Models\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,13 @@ class DashboardController extends Controller
                     'total' => round($totalRevenue, 2),
                 ],
                 'recent_orders' => $recentOrders,
+                // Requests still waiting on the vendor, for the home's
+                // Service requests row.
+                'service_requests' => [
+                    'open' => ServiceRequest::where('vendor_id', $vendorId)
+                        ->whereIn('status', ServiceRequest::OPEN)
+                        ->count(),
+                ],
             ]
         ]);
     }

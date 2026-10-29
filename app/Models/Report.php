@@ -56,6 +56,7 @@ class Report extends Model
             'product' => Product::find($this->reportable_id),
             'message' => ChMessage::find($this->reportable_id),
             'review' => Review::find($this->reportable_id),
+            'service' => Service::find($this->reportable_id),
             default => null,
         };
     }
@@ -77,6 +78,7 @@ class Report extends Model
             'product' => $subject->name ?? 'Product #' . $this->reportable_id,
             'review' => Str::limit($subject->review_text ?? '', 80),
             'message' => Str::limit($subject->body ?? '(attachment)', 80),
+            'service' => $subject->title ?? 'Service #' . $this->reportable_id,
             default => '—',
         };
     }

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Cache;
 use App\Models\CompanyProductCategoryLinks;
+use App\Models\Service;
 
 class ProductController extends Controller
 {
@@ -38,6 +39,16 @@ class ProductController extends Controller
             'id' => $seller->id,
             'name' => $seller->sellerName(),
         ] : null);
+
+        // The vendor's active service tied to this product, if any, so the
+        // product page can offer "Request service" (service_status and
+        // service_type above are the product's own Free/Paid flag).
+        $product->setAttribute('linked_service', Service::where('product_id', $product->id)
+            ->where('user_id', $product->user_id)
+            ->where('status', 'active')
+            ->first(['id', 'user_id', 'product_id', 'title', 'description', 'price', 'service_types',
+                'duration_type', 'service_mode', 'start_day', 'end_day', 'start_time', 'end_time',
+                'is_recurring', 'status']));
 
         return $this->successResponse('Product details fetched successfully.', $product->makeHidden('user'));
     }

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Report;
 use App\Models\Review;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Models\VendorBoost;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -44,7 +45,7 @@ class AppServiceProvider extends ServiceProvider
     protected function shareModerationCounts(): void
     {
         View::composer('layouts.partials.sidebar', function ($view) {
-            $counts = ['pendingReportCount' => 0, 'pendingReviewCount' => 0, 'pendingBoostCount' => 0, 'pendingVendorCount' => 0];
+            $counts = ['pendingReportCount' => 0, 'pendingReviewCount' => 0, 'pendingBoostCount' => 0, 'pendingVendorCount' => 0, 'openServiceRequestCount' => 0];
 
             try {
                 $counts['pendingVendorCount'] = User::where('role_id', 2)->where('business_status', '!=', 'active')->count();
@@ -55,6 +56,10 @@ class AppServiceProvider extends ServiceProvider
 
                 if (Schema::hasTable('reviews')) {
                     $counts['pendingReviewCount'] = Review::where('status', 'pending')->count();
+                }
+
+                if (Schema::hasTable('service_requests')) {
+                    $counts['openServiceRequestCount'] = ServiceRequest::whereIn('status', ServiceRequest::OPEN)->count();
                 }
 
                 if (Schema::hasColumn('vendor_boosts', 'approval_status')) {

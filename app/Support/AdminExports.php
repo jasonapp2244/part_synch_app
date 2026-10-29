@@ -10,6 +10,8 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Report;
 use App\Models\Review;
+use App\Models\Service;
+use App\Models\ServiceRequest;
 use App\Models\Setting;
 use App\Models\SubCategory;
 use App\Models\User;
@@ -40,6 +42,8 @@ class AdminExports
         'reviews' => 'reviews',
         'boost-packages' => 'boostPackages',
         'boost-requests' => 'boostRequests',
+        'services' => 'services',
+        'service-requests' => 'serviceRequests',
     ];
 
     public static function lists(): array
@@ -345,6 +349,59 @@ class AdminExports
                 'Ends' => fn ($b) => self::date($b->end_date),
                 'Requested' => fn ($b) => self::date($b->created_at),
                 'Note' => fn ($b) => $b->rejection_reason ?: $b->vendor_note,
+            ],
+        ];
+    }
+
+    private function services(Request $request): array
+    {
+        return [
+            'title' => 'Services',
+            'filter' => null,
+            'records' => Service::with(['user:id,first_name,last_name,business_name,email', 'product:id,name'])
+                ->withCount('requests')
+                ->latest()
+                ->get(),
+            'columns' => [
+                'S.no' => fn ($s, $i) => $i + 1,
+                'Service' => fn ($s) => $s->title,
+                'Vendor' => fn ($s) => $s->user?->sellerName() ?? 'Deleted vendor',
+                'Linked product' => fn ($s) => $s->product?->name,
+                self::money('Price') => fn ($s) => $s->price !== null ? (float) $s->price : null,
+                'Type' => fn ($s) => ucfirst(str_replace('_', ' ', (string) $s->service_types)),
+                'Duration' => fn ($s) => ucfirst((string) $s->duration_type),
+                'Delivered' => fn ($s) => ucfirst((string) $s->service_mode),
+                'Requests' => fn ($s) => $s->requests_count,
+                'Status' => fn ($s) => ucfirst((string) $s->status),
+            ],
+        ];
+    }
+
+    private function serviceRequests(Request $request): array
+    {
+        $status = $request->query('status');
+        if ($status && ! array_key_exists($status, ServiceRequest::STATUS_LABELS)) {
+            $status = null;
+        }
+
+        return [
+            'title' => 'Service requests',
+            'filter' => $status ? 'Status: ' . ServiceRequest::STATUS_LABELS[$status] : null,
+            'records' => ServiceRequest::with(['customer:id,first_name,last_name,email', 'vendor:id,first_name,last_name,business_name,email'])
+                ->when($status, fn ($q) => $q->where('status', $status))
+                ->latest()
+                ->get(),
+            'columns' => [
+                'Request' => fn ($r) => $r->request_number,
+                'Service' => fn ($r) => $r->title,
+                'Customer' => fn ($r) => self::name($r->customer),
+                'Vendor' => fn ($r) => $r->vendor?->sellerName() ?? 'Deleted vendor',
+                'Preferred date' => fn ($r) => $r->preferred_date?->format('Y-m-d'),
+                'Booked for' => fn ($r) => self::date($r->scheduled_at),
+                self::money('Price') => fn ($r) => ($r->quoted_price ?? $r->price) !== null ? (float) ($r->quoted_price ?? $r->price) : null,
+                'Paid outside the app' => fn ($r) => $r->paid_outside ? 'Yes' : 'No',
+                'Status' => fn ($r) => $r->statusLabel(),
+                'Requested' => fn ($r) => self::date($r->created_at),
             ],
         ];
     }

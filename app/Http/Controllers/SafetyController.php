@@ -6,6 +6,7 @@ use App\Models\ChMessage;
 use App\Models\Product;
 use App\Models\Report;
 use App\Models\Review;
+use App\Models\Service;
 use App\Models\User;
 use App\Models\UserBlock;
 use Illuminate\Http\Request;
@@ -45,12 +46,12 @@ class SafetyController extends Controller
     }
 
     /**
-     * Report a user, product, chat message or review.
+     * Report a user, product, chat message, review or service.
      */
     public function report(Request $request)
     {
         $request->validate([
-            'reportable_type' => ['required', Rule::in(['user', 'product', 'message', 'review'])],
+            'reportable_type' => ['required', Rule::in(['user', 'product', 'message', 'review', 'service'])],
             // A string, not an integer: chat message ids are UUIDs.
             'reportable_id' => ['required', 'string', 'max:64'],
             'reason' => ['required', Rule::in(Report::REASONS)],
@@ -213,6 +214,7 @@ class SafetyController extends Controller
             'product' => Product::whereKey($id)->exists(),
             'message' => ChMessage::whereKey($id)->exists(),
             'review' => Review::whereKey($id)->exists(),
+            'service' => Service::whereKey($id)->exists(),
             default => false,
         };
     }

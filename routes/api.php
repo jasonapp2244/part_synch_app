@@ -29,6 +29,7 @@ use App\Http\Controllers\Vendor\{
     OrderController as VendorOrderController,
     VendorBoostController,
     NotificationController as VendorNotificationController,
+    ServiceRequestController as VendorServiceRequestController,
 };
 
 // User Controllers
@@ -43,6 +44,7 @@ use App\Http\Controllers\User\{
     NotificationController as UserNotificationController,
     AddressController as UserAddressController,
     ReviewController as UserReviewController,
+    ServiceRequestController as UserServiceRequestController,
 };
 
 // ────────────────────────────────
@@ -158,6 +160,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/update_service/{id}', [VendorServiceController::class, 'updateService']);
         Route::delete('/delete_service/{id}', [VendorServiceController::class, 'deleteService']);
 
+        // Service requests from customers
+        Route::get('/service-requests', [VendorServiceRequestController::class, 'index']);
+        Route::post('/service-requests/{id}/status', [VendorServiceRequestController::class, 'updateStatus'])->whereNumber('id');
+        Route::post('/service-requests/{id}/paid', [VendorServiceRequestController::class, 'markPaid'])->whereNumber('id');
+
         // Stock Management
         Route::post('/update-stock', [VendorStockController::class, 'updateStock']);
 
@@ -238,6 +245,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/wishlist', [UserWishlistController::class, 'getWishlist']);
         Route::post('/store-wishlist', [UserWishlistController::class, 'storeWishlist']);
         Route::delete('/remove-wishlist', [UserWishlistController::class, 'removeWishlist']);
+
+        // Services: what a seller offers, and the customer's requests
+        Route::get('/vendor/{vendorId}/services', [UserServiceRequestController::class, 'vendorServices'])->whereNumber('vendorId');
+        Route::get('/service-requests', [UserServiceRequestController::class, 'index']);
+        Route::post('/service-requests', [UserServiceRequestController::class, 'store']);
+        Route::post('/service-requests/{id}/cancel', [UserServiceRequestController::class, 'cancel'])->whereNumber('id');
 
         // Saved Addresses
         Route::get('/addresses', [UserAddressController::class, 'index']);

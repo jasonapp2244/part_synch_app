@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Service;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -81,6 +82,10 @@ class ServiceController extends Controller
                     'data' => $service,
                 ], 201);
             }
+        } catch (ValidationException $e) {
+            // Its own catch: the one below swallowed it and answered a bad
+            // field with a 500 instead of the 422 that names the field.
+            throw $e;
         } catch (Exception $e) {
             Log::error('Service Insertion Error: ' . $e->getMessage());
             return response()->json([
@@ -158,7 +163,22 @@ class ServiceController extends Controller
                 ], 400);
             }
 
-            $service->product_id = $request->product_id ?? $service->product_id;
+            // One service per product, as when adding: the product page offers
+            // only one. Checked against every other service, not this one.
+            if ($request->product_id && Service::where('product_id', $request->product_id)
+                ->where('id', '!=', $service->id)
+                ->exists()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'This Product service already exists!',
+                ], 400);
+            }
+
+            // `product_id` sent as null unlinks the product. Builds that never
+            // send the key keep the link they had.
+            if ($request->has('product_id')) {
+                $service->product_id = $request->product_id ?: null;
+            }
             $service->service_types = $request->service_types ?? $service->service_types;
             $service->title = $request->title ?? $service->title;
             $service->description = $request->description ?? $service->description;

@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Review;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -153,6 +154,16 @@ class ReviewController extends Controller
             ->where('order_items.product_id', $request->product_id)
             ->whereIn('orders.order_status', ['delivered', 'completed'])
             ->select('orders.vendor_id')
+            ->first();
+
+        // A completed service on this product counts the same: the customer
+        // had the work done, so the review is verified.
+        $deliveredOrder ??= ServiceRequest::query()
+            ->join('services', 'services.id', '=', 'service_requests.service_id')
+            ->where('service_requests.customer_id', $userId)
+            ->where('services.product_id', $request->product_id)
+            ->where('service_requests.status', 'completed')
+            ->select('service_requests.vendor_id')
             ->first();
 
         $product = Product::find($request->product_id);

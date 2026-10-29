@@ -7,6 +7,7 @@ use App\Models\ChMessage;
 use App\Models\Product;
 use App\Models\Report;
 use App\Models\Review;
+use App\Models\Service;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -78,6 +79,7 @@ class ReportController extends Controller
             'product' => (bool) Product::whereKey($report->reportable_id)->update(['status' => 'inactive']),
             'review' => (bool) Review::whereKey($report->reportable_id)->update(['status' => 'rejected']),
             'message' => (bool) ChMessage::whereKey($report->reportable_id)->delete(),
+            'service' => (bool) Service::whereKey($report->reportable_id)->update(['status' => 'inactive']),
             default => false,
         };
 

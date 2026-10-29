@@ -48,4 +48,19 @@ class Service extends Model
     'monthly'=>'monthly',
     'yearly'=>'yearly'
 ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function requests()
+    {
+        return $this->hasMany(ServiceRequest::class);
+    }
 }

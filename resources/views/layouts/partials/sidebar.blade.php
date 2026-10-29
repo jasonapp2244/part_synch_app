@@ -90,6 +90,27 @@
             </a>
         </li>
 
+        <li class="menu-label">Services</li>
+
+        <li>
+            <a href="{{ route('admin.service.requests') }}" class="{{ request()->routeIs('admin.service.requests') ? 'mm-active' : '' }}">
+                <div class="parent-icon"><i class='bx bx-wrench'></i></div>
+                <div class="menu-title">
+                    Service Requests
+                    @if(($openServiceRequestCount ?? 0) > 0)
+                        <span class="badge bg-warning text-dark ms-1">{{ $openServiceRequestCount }}</span>
+                    @endif
+                </div>
+            </a>
+        </li>
+
+        <li>
+            <a href="{{ route('admin.services') }}" class="{{ request()->routeIs('admin.services') ? 'mm-active' : '' }}">
+                <div class="parent-icon"><i class='bx bx-briefcase-alt'></i></div>
+                <div class="menu-title">Services</div>
+            </a>
+        </li>
+
         <li class="menu-label">Moderation</li>
 
         <li>
