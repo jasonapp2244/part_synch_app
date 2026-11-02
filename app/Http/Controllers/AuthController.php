@@ -8,12 +8,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Services\PasswordResetCodes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
+    private const OTP_MAX_ATTEMPTS = 5;
+
+    private static function otpAttemptsKey(string $email): string
+    {
+        return 'otp-attempts:'.strtolower(trim($email));
+    }
+
 
 
     public function signup(Request $request)
@@ -44,7 +52,7 @@ class AuthController extends Controller
         }
 
         try {
-            $otp = str_pad((string) rand(1000, 9999), 4, '0', STR_PAD_LEFT);
+            $otp = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
 
             $user = new User();
             $user->role_id      = ($accountType === 'business') ? 2 : 3;
@@ -114,7 +122,7 @@ class AuthController extends Controller
             return response()->json([
                 'status' => false,
                 'data'   => [],
-                'error'  => $e->getMessage(),
+                'error'  => \App\Support\ApiError::message($e),
             ], 500);
         }
     }
@@ -131,11 +139,20 @@ class AuthController extends Controller
 
         $email = $request->email;
         $user = User::where('email', $email)->first();
-        if (!$user) {
-            return response()->json(['message' => 'Email not found in our records.'], 400);
+
+        // Only an account still waiting on its sign-up code gets a new one.
+        // This used to issue a code to any account: that locked a verified
+        // user out (sign-in refuses while a code is pending) and, through
+        // otp-verification, let a blocked user switch themselves back on.
+        // The answer is the same whether or not the email is registered.
+        if (! $user || $user->otp === null) {
+            return response()->json([
+                'status'  => true,
+                'message' => 'If this email has an account waiting for verification, a new code has been sent.',
+            ]);
         }
-        $otp_number = rand(1000, 9999);
-        $otp        = str_pad((string) $otp_number, 4, '0', STR_PAD_LEFT);
+        $otp = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+        Cache::forget(self::otpAttemptsKey($email));
         $user->otp = $otp;
         $user->otp_expires_at = now()->addMinutes(10);
         if (! $user->save()) {
@@ -198,17 +215,37 @@ class AuthController extends Controller
             // and several signups in flight, guessing a code that belongs to
             // somebody else is cheap. Matching on both columns means a code is
             // only ever good for its own account.
+            // Four digits only hold up with a cap on guesses: five wrong tries
+            // replace the code with one nobody knows, and a new one has to be
+            // requested.
+            $attemptsKey = self::otpAttemptsKey($request->email);
+            if ((int) Cache::get($attemptsKey, 0) >= self::OTP_MAX_ATTEMPTS) {
+                return response()->json([
+                    'status'  => false,
+                    'data'    => [],
+                    'message' => 'Too many wrong codes. Please request a new one.',
+                ], 429);
+            }
+
             $otpCheck = User::where('email', $request->email)
                 ->where('otp', $request->otp)
                 ->first();
 
             if (!$otpCheck) {
+                $attempts = (int) Cache::get($attemptsKey, 0) + 1;
+                Cache::put($attemptsKey, $attempts, now()->addMinutes(15));
+                if ($attempts >= self::OTP_MAX_ATTEMPTS) {
+                    User::where('email', $request->email)->whereNotNull('otp')
+                        ->update(['otp' => (string) random_int(10000, 99999)]);
+                }
+
                 return response()->json([
                     'status'  => false,
                     'data'    => [],
                     'message' => 'Invalid OTP. Please check your email and try again.',
                 ], 400);
             }
+            Cache::forget($attemptsKey);
 
             if ($otpCheck->otp_expires_at && now()->greaterThan($otpCheck->otp_expires_at)) {
                 return response()->json([
@@ -233,7 +270,7 @@ class AuthController extends Controller
             return response()->json([
                 'status' => false,
                 'data'   => [],
-                'error'  => $e->getMessage(),
+                'error'  => \App\Support\ApiError::message($e),
             ]);
         }
     }
@@ -314,7 +351,7 @@ class AuthController extends Controller
             return response()->json([
                 'status' => false,
                 'data'   => [],
-                'error'  => $e->getMessage(),
+                'error'  => \App\Support\ApiError::message($e),
             ]);
         }
     }
@@ -385,9 +422,9 @@ class AuthController extends Controller
             return response()->json([
                 'status'  => false,
                 'data'    => [],
-                'message' => 'validation error',
+                'message' => $validator->errors()->first(),
                 'error'   => $validator->errors()->all(),
-            ], 500);
+            ], 422);
         }
 
         // $user = User::find($)
@@ -417,8 +454,10 @@ class AuthController extends Controller
         $user->password = Hash::make($request->password);
         $user->save();
 
-        // Mail::to($user->email)->send(new PasswordChangedMail($user));
-        // auth()->logout();
+        // Every session ends, so whoever holds an older token (a lost phone,
+        // a shared device) is signed out too (BCR-29). The app already asks
+        // for a fresh sign-in after a change, so its own token goes as well.
+        $user->tokens()->delete();
 
         return response()->json([
             'status'  => true,

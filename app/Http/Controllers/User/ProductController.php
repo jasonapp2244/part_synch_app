@@ -100,7 +100,7 @@ class ProductController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'An error occurred while retrieving product categories.',
-                'error' => $e->getMessage()
+                'error' => \App\Support\ApiError::message($e)
             ], 500);
         }
     }
@@ -142,7 +142,7 @@ class ProductController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'An error occurred while retrieving companies.',
-                'error' => $e->getMessage()
+                'error' => \App\Support\ApiError::message($e)
             ], 500);
         }
     }
@@ -185,7 +185,7 @@ class ProductController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'An error occurred while retrieving modal numbers.',
-                'error' => $e->getMessage()
+                'error' => \App\Support\ApiError::message($e)
             ], 500);
         }
     }
@@ -231,7 +231,7 @@ class ProductController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'An error occurred while retrieving products.',
-                'error' => $e->getMessage()
+                'error' => \App\Support\ApiError::message($e)
             ], 500);
         }
     }

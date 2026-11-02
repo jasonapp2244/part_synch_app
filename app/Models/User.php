@@ -76,6 +76,9 @@ class User extends Authenticatable
         'remember_token',
         'forgot_password_token',
         'reset_password_token',
+        // Push tokens: never sent to anyone, the owner included.
+        'web_token',
+        'token',
     ];
 
     /**

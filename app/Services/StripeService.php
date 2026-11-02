@@ -91,7 +91,15 @@ class StripeService
      */
     public function webhookEvent(string $payload, string $signature): Event
     {
-        return Webhook::constructEvent($payload, $signature, (string) config('services.stripe.webhook_secret'));
+        $secret = (string) config('services.stripe.webhook_secret');
+
+        // With no secret configured the signature is checked against an empty
+        // key, which anyone can compute: refuse every event instead.
+        if ($secret === '') {
+            throw new \UnexpectedValueException('STRIPE_WEBHOOK_SECRET is not set.');
+        }
+
+        return Webhook::constructEvent($payload, $signature, $secret);
     }
 
     private function client(): StripeClient

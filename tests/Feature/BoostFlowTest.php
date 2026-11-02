@@ -54,6 +54,8 @@ class BoostFlowTest extends TestCase
             'email' => "role{$roleId}-" . uniqid() . '@example.com',
             'password' => Hash::make('secret-password'),
             'status' => 'active',
+            // Sellers in these tests are approved; the seller API refuses one that is not.
+            'business_status' => $roleId === 2 ? 'active' : 'inactive',
         ]);
     }
 

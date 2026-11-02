@@ -159,7 +159,7 @@ class CheckoutController extends Controller
                     Mail::to($user->email)->send(new ProductOutOfStockMail($product, $user, 'customer'));
                 } catch (\Exception $e) {
                     Log::error('Failed to send out of stock email to customer: ' . $user->email, [
-                        'error' => $e->getMessage(),
+                        'error' => \App\Support\ApiError::message($e),
                         'product_id' => $product->id,
                         'trace' => $e->getTraceAsString()
                     ]);
@@ -170,7 +170,7 @@ class CheckoutController extends Controller
                         Mail::to($vendor->email)->send(new ProductOutOfStockMail($product, $user, 'vendor'));
                     } catch (\Exception $e) {
                         Log::error('Failed to send out of stock email to vendor: ' . $vendor->email, [
-                            'error' => $e->getMessage(),
+                            'error' => \App\Support\ApiError::message($e),
                             'product_id' => $product->id,
                             'trace' => $e->getTraceAsString()
                         ]);
@@ -303,7 +303,7 @@ class CheckoutController extends Controller
                     Mail::to($user->email)->queue(new OrderPlacedMail($order, $orderItems, $items, $user, $vendorRecord, $completeAddress, 'user', $subtotal, $grandTotal));
                 } catch (\Exception $e) {
                     Log::error('Failed to send order email to user: ' . $user->email, [
-                        'error' => $e->getMessage(),
+                        'error' => \App\Support\ApiError::message($e),
                         'order_id' => $order->id,
                         'order_number' => $order->order_number,
                         'trace' => $e->getTraceAsString()
@@ -315,7 +315,7 @@ class CheckoutController extends Controller
                         Mail::to($vendorRecord->email)->queue(new OrderPlacedMail($order, $orderItems, $items, $user, $vendorRecord, $completeAddress, 'vendor', $subtotal, $grandTotal));
                     } catch (\Exception $e) {
                         Log::error('Failed to send order email to vendor: ' . $vendorRecord->email, [
-                            'error' => $e->getMessage(),
+                            'error' => \App\Support\ApiError::message($e),
                             'order_id' => $order->id,
                             'order_number' => $order->order_number,
                             'trace' => $e->getTraceAsString()
@@ -338,7 +338,7 @@ class CheckoutController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Something went wrong while placing the order.',
-                'error' => $e->getMessage(),
+                'error' => \App\Support\ApiError::message($e),
             ], 500);
         }
     }

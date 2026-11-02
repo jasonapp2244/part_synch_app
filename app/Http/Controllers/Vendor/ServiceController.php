@@ -91,7 +91,7 @@ class ServiceController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Service could not be inserted!',
-                'error' => $e->getMessage(),
+                'error' => \App\Support\ApiError::message($e),
             ], 500);
         }
     }
@@ -123,7 +123,7 @@ class ServiceController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Error fetching services!',
-                'error' => $e->getMessage(),
+                'error' => \App\Support\ApiError::message($e),
             ], 500);
         }
     }
@@ -212,7 +212,7 @@ class ServiceController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Service update failed!',
-                'error' => $e->getMessage(),
+                'error' => \App\Support\ApiError::message($e),
             ], 500);
         }
     }
@@ -241,7 +241,7 @@ class ServiceController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Service deletion failed!',
-                'error' => $e->getMessage(),
+                'error' => \App\Support\ApiError::message($e),
             ], 500);
         }
     }

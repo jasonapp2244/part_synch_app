@@ -231,23 +231,38 @@ class HomeController extends Controller
         return response()->json($data);
     }
 
+    /**
+     * One brand's catalogue, for the brand list in the app.
+     *
+     * This used to page the link table, so rows had no product id (nothing
+     * could be opened), no name or price for most links, and links to deleted
+     * or inactive products. It now lists the brand's active products of active
+     * sellers in the home feed's shape, like the seller catalogue below; the
+     * older keys stay for existing callers.
+     */
     public function viewMoreProductRelatedCompany(Request $request, $companyId = NULL)
     {
-        $links = CompanyProductCategoryLinks::with(['product.productImages', 'user'])
+        $products = Product::with(['productImages', 'user'])
             ->where('company_id', $companyId)
+            ->where('status', 'active')
+            ->whereHas('user', fn ($query) => $query->where('role_id', 2)->where('status', 'active'))
+            ->orderByDesc('created_at')
             ->paginate(20);
 
-        $data = $links->through(function ($link) {
+        $data = $products->through(function ($product) {
             return [
-                'product_name'     => $link->product->name ?? null,
-                'description'      => $link->product->description ?? null,
-                'modal_number'     => $link->product->modal_number ?? null,
-                'sku'              => $link->product->sku ?? null,
-                'created_at'       => $link->product->created_at ?? null,
-                'price'            => $link->custom_price,
-                'stock_quantity'   => $link->stock_quantity,
-                'vendor_name'      => $link->user->first_name ?? null,
-                'images'           => $link->product->productImages->pluck('image_url'),
+                'id'               => $product->id,
+                'name'             => $product->name,
+                'product_images'   => $product->productImages->map(fn ($image) => ['image_url' => $image->image_url])->values(),
+                'product_name'     => $product->name,
+                'description'      => $product->description,
+                'modal_number'     => $product->modal_number,
+                'sku'              => $product->sku,
+                'created_at'       => $product->created_at,
+                'price'            => $product->price,
+                'stock_quantity'   => $product->stock_quantity,
+                'vendor_name'      => $product->user?->sellerName(),
+                'images'           => $product->productImages->pluck('image_url'),
             ];
         });
 

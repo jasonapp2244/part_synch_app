@@ -57,6 +57,8 @@ class AdminProductCategoryTest extends TestCase
             'email' => 'user' . $role . '-' . uniqid() . '@example.com',
             'password' => Hash::make('secret-password'),
             'status' => 'active',
+            // Sellers in these tests are approved; the seller API refuses one that is not.
+            'business_status' => $role === 2 ? 'active' : 'inactive',
         ]);
     }
 

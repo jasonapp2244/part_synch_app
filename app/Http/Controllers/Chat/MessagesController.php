@@ -22,6 +22,22 @@ class MessagesController extends ChatifyMessagesController
     {
         $recipient = $request['id'];
 
+        // Chatify validates nothing: no recipient was a 500 (to_id null), an
+        // empty message was stored, a made-up recipient was accepted (BCR-38).
+        if (! $recipient || (int) $recipient === (int) Auth::id()
+            || ! User::whereKey($recipient)->where('status', 'active')->exists()) {
+            return Response::json([
+                'status' => 0,
+                'message' => 'Choose who to send the message to.',
+            ], 422);
+        }
+        if (trim((string) $request['message']) === '' && ! $request->hasFile('file')) {
+            return Response::json([
+                'status' => 0,
+                'message' => 'Type a message or attach a photo.',
+            ], 422);
+        }
+
         if ($recipient && UserBlock::existsBetween(Auth::id(), $recipient)) {
             return Response::json([
                 'status' => 0,

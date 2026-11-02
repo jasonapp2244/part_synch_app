@@ -89,7 +89,8 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('auth', function (Request $request) {
-            $email = (string) $request->input('email');
+            // Lowercased so "A@x.com" and "a@x.com" share one budget.
+            $email = strtolower(trim((string) $request->input('email')));
 
             return [
                 Limit::perMinute(5)->by($request->ip().'|'.$email),

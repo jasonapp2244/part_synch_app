@@ -61,10 +61,12 @@ class ProductController extends Controller
         if (! $id) {
             return response()->json(['error' => 'Product ID is required'], 400);
         }
+        // Only the signed-in vendor's own listing; this is the edit form's source.
         $product = Product::where('id', $id)
+            ->where('user_id', Auth::id())
             ->with('productImages')
             ->get();
-        if (! $product) {
+        if ($product->isEmpty()) {
             return response()->json(
                 [
                     'error' => 'Product not found'
@@ -99,7 +101,8 @@ class ProductController extends Controller
                 // already insists on one, and this keeps older builds and
                 // direct API calls to the same rule.
                 'product_pic'                   => 'required|array|min:1',
-                'product_pic.*'                 => 'image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+                // No SVG: it can carry script and is served from the admin's origin.
+                'product_pic.*'                 => 'image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             ], [
                 'product_pic.required' => 'Add at least one product photo.',
                 'product_pic.min'      => 'Add at least one product photo.',
@@ -209,7 +212,9 @@ class ProductController extends Controller
             if ($request->hasFile('product_pic')) {
                 foreach ($request->file('product_pic') as $image) {
                     $imageHash = sha1_file($image->getRealPath());
-                    $imageName = $imageHash . '_' . time() . '.' . $image->getClientOriginalExtension();
+                    // The extension comes from the file's content, not the name the
+                    // client sent, so "x.php" or "x.html" can never be stored as such.
+                    $imageName = $imageHash . '_' . time() . '.' . $image->extension();
                     $imagePath = 'product_images/' . $imageName;
 
                     if (Storage::exists($imagePath)) {
@@ -270,7 +275,7 @@ class ProductController extends Controller
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong!',
-                'error'   => $e->getMessage(),
+                'error'   => \App\Support\ApiError::message($e),
             ], 500);
         }
     }
@@ -292,6 +297,14 @@ class ProductController extends Controller
                     'message' => 'You are not authorized to update this product.',
                 ], 403);
             }
+
+            // Same photo rule as addProduct. This endpoint used to accept any
+            // file and store it under the client's extension, so a vendor could
+            // upload a script into the public storage folder.
+            $request->validate([
+                'product_pic'   => 'nullable|array',
+                'product_pic.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            ]);
 
             // Photos named in `remove_images[]`, by file name. Worked out before
             // anything is saved so an update that would strip the listing of
@@ -426,10 +439,11 @@ class ProductController extends Controller
             $link->is_active             = $request->is_active            ?? $link->is_active ?? true;
             $link->notes                 = $request->notes                ?? $link->notes;
             // $link->sku                   = $request->sku                  ?? $link->sku;
-            $link->is_approved           = $request->is_approved          ?? $link->is_approved ?? false;
-            $link->price_type            = $request->price_type           ?? $link->price_type;
+            $link->is_approved           = $link->is_approved ?? false;
+            // A product with no link row yet gets one here; a null type was a 500.
+            $link->price_type            = $request->price_type           ?? $link->price_type ?? 'standard';
             $link->tags                  = $request->tags                 ?? $link->tags;
-            $link->is_deleted            = $request->is_deleted           ?? $link->is_deleted ?? 0;
+            $link->is_deleted            = $link->is_deleted ?? 0;
 
             $link->price_updated_at      = now();
             $link->stock_updated_at      = now();
@@ -464,7 +478,7 @@ class ProductController extends Controller
                         continue;
                     }
 
-                    $imageName = $imageHash . '_' . time() . "." . $image->getClientOriginalExtension();
+                    $imageName = $imageHash . '_' . time() . '.' . $image->extension();
                     $imagePath = 'product_images/' . $imageName;
 
                     if ($image->storeAs('product_images', $imageName) === false) {
@@ -489,11 +503,17 @@ class ProductController extends Controller
                 'data'          => $product,
                 'product_images'        => $uploadedImages,
             ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'The product could not be saved.',
+                'errors'  => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong!',
-                'error'   => $e->getMessage(),
+                'error'   => \App\Support\ApiError::message($e),
             ], 500);
         }
     }
@@ -549,7 +569,7 @@ class ProductController extends Controller
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong!',
-                'error'   => $e->getMessage(),
+                'error'   => \App\Support\ApiError::message($e),
             ], 500);
         }
     }

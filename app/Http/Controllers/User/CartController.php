@@ -123,7 +123,7 @@ class CartController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Something went wrong',
-                'error' => $e->getMessage()
+                'error' => \App\Support\ApiError::message($e)
             ], 500);
         }
     }
@@ -242,7 +242,7 @@ class CartController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Something went wrong.',
-                'error' => $e->getMessage()
+                'error' => \App\Support\ApiError::message($e)
             ], 500);
         }
     }

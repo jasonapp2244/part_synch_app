@@ -85,7 +85,8 @@ class UserController extends Controller
             if ($request->hasFile('profile_image')) {
 
                 $image     = $request->file('profile_image');
-                $imageName = 'profile_' . time() . '.' . $image->getClientOriginalExtension();
+                // Extension from the content, not the client's file name (stored XSS).
+                $imageName = 'profile_' . time() . '.' . $image->extension();
 
                 // Save the new photo before removing the old one, and keep the
                 // old one if the write fails: the disk does not throw, so this
@@ -103,7 +104,7 @@ class UserController extends Controller
 
             if ($accountType === 'business' && $request->hasFile('business_logo')) {
                 $logo = $request->file('business_logo');
-                $logoName = 'business_logo_' . time() . '.' . $logo->getClientOriginalExtension();
+                $logoName = 'business_logo_' . time() . '.' . $logo->extension();
 
                 if ($logo->storeAs('business_logos', $logoName) === false) {
                     Log::error('Business logo was not saved', ['user_id' => $user->id]);
@@ -159,11 +160,19 @@ class UserController extends Controller
                 'message' => 'Profile updated successfully',
                 'data'    => $responseData,
             ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // A rejected photo or an over-long field used to fall into the
+            // handler below and come back as a 500 "Something went wrong".
+            return response()->json([
+                'status'  => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Please check the details and try again.',
+                'errors'  => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => false,
                 'message' => 'Something went wrong',
-                'error'   => $e->getMessage(),
+                'error'   => \App\Support\ApiError::message($e),
             ], 500);
         }
     }

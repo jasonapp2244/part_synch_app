@@ -71,6 +71,26 @@ php artisan route:clear
 php artisan config:cache
 php artisan view:cache
 
+say "Checking production settings"
+# Warnings, not failures: the code is already live at this point, and a
+# half-finished deploy is worse than a loud one.
+php artisan tinker --execute='
+$warn = [];
+if (config("app.debug")) $warn[] = "APP_DEBUG is true: error pages show stack traces and settings. Set APP_DEBUG=false.";
+if (config("app.env") !== "production") $warn[] = "APP_ENV is \"".config("app.env")."\", not production.";
+if (config("services.stripe.secret") && ! config("services.stripe.webhook_secret")) $warn[] = "STRIPE_WEBHOOK_SECRET is empty: every Stripe webhook is refused.";
+if (in_array(config("mail.default"), ["log", "array"], true)) $warn[] = "MAIL_MAILER is ".config("mail.default").": sign-up codes and password resets are not emailed.";
+foreach ($warn as $w) echo "\033[1;31mWARNING: {$w}\033[0m\n";
+if (! $warn) echo "  ok\n";
+'
+# Uploads are images only. A script under storage/app/public is served by the
+# web server from /storage, so its presence means something got past the
+# upload checks: list it and remove it by hand.
+if find storage/app/public -type f \( -iname '*.php*' -o -iname '*.phtml' -o -iname '*.phar' -o -iname '*.htm*' -o -iname '*.svg' \) | grep -q .; then
+    printf '\n\033[1;31mWARNING: non-image files under storage/app/public:\033[0m\n'
+    find storage/app/public -type f \( -iname '*.php*' -o -iname '*.phtml' -o -iname '*.phar' -o -iname '*.htm*' -o -iname '*.svg' \)
+fi
+
 say "Checking admin credentials"
 # The admin row was created with its password in plain text, which
 # Auth::attempt() can never match - the panel would reject the right password.

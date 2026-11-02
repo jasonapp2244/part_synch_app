@@ -2,99 +2,85 @@
 
 namespace App\Http\Controllers\Vendor;
 
-
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Validator;
-
-use function PHPUnit\Framework\isFalse;
+use Illuminate\Support\Facades\Auth;
 
 class VendorMapController extends Controller
 {
     /**
-     * Update the specified resource in storage.
+     * What a map pin may show about a seller. These endpoints used to return
+     * whole `users` rows (email, phone, home address, push tokens) for every
+     * located account, customers and admins included.
+     */
+    private const PIN_COLUMNS = [
+        'id', 'first_name', 'last_name', 'business_name', 'business_logo',
+        'profile_image', 'city', 'state', 'latitude', 'longitude',
+    ];
+
+    /**
+     * Update the signed-in vendor's own location.
+     *
+     * This used to take a `user_id` from the request, so any vendor could move
+     * any account (and read it back in full).
      */
     public function updateVendor(Request $request)
     {
-
         $validatedData = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'latitude' => 'required|numeric',
-            'longitude' => 'required|numeric',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
         ]);
 
+        $user = Auth::user();
+        $user->latitude = $validatedData['latitude'];
+        $user->longitude = $validatedData['longitude'];
 
-        $user = User::findOrFail($validatedData['user_id']);
-
-        if ($user->role_id === 2 || $user->role_id === 3) {
-
-            $user->latitude = $validatedData['latitude'];
-            $user->longitude = $validatedData['longitude'];
-
-
-            if ($user->role_id === 3) {
-                $user->address = $request->address;
-            }
-
-
-            if ($user->save()) {
-                return response()->json([
-                    'status' => true,
-                    'message' => 'location updated successfully',
-                    'data' => $user,
-                ]);
-            } else {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'location not updated',
-                ]);
-            }
+        if (! $user->save()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'location not updated',
+            ]);
         }
 
-
         return response()->json([
-            'status' => false,
-            'message' => 'Unauthorized user role',
+            'status' => true,
+            'message' => 'location updated successfully',
+            'data' => [
+                'id' => $user->id,
+                'latitude' => $user->latitude,
+                'longitude' => $user->longitude,
+            ],
         ]);
     }
 
-
     /**
-     * Fetch all vendors with a location.
+     * Fetch all active sellers with a location.
      */
     public function getVendors()
     {
-
-        // dd($requst);
-        $vendors = User::whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->get();
+        $vendors = $this->sellers()->get(self::PIN_COLUMNS);
 
         return response()->json(['vendors' => $vendors]);
     }
 
     /**
-     * Get nearest vendors based on latitude & longitude.
+     * Get nearest sellers based on latitude & longitude.
      */
-    //
     public function getNearestVendors(Request $request)
     {
         $validatedData = $request->validate([
-            'latitude' => 'required|numeric',
-            'longitude' => 'required|numeric',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
         ]);
 
         $latitude = $validatedData['latitude'];
         $longitude = $validatedData['longitude'];
 
-        $vendors = User::whereNotNull('latitude')
-            ->whereNotNull('longitude')
+        $vendors = $this->sellers()
+            ->select(self::PIN_COLUMNS)
             ->selectRaw(
-                "*,
-        (6371 * acos(cos(radians(?)) * cos(radians(latitude))
+                "(6371 * acos(cos(radians(?)) * cos(radians(latitude))
         * cos(radians(longitude) - radians(?))
         + sin(radians(?)) * sin(radians(latitude)))) AS distance",
                 [$latitude, $longitude, $latitude]
@@ -103,12 +89,16 @@ class VendorMapController extends Controller
             ->orderBy('distance', 'asc')
             ->limit(10)
             ->get();
+
         return response()->json(['nearest_vendors' => $vendors]);
     }
 
-
-    public function destroy(string $id)
+    private function sellers()
     {
-        //
+        return User::where('role_id', 2)
+            ->where('status', 'active')
+            ->where('business_status', 'active')
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude');
     }
 }
