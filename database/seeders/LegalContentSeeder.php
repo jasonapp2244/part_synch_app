@@ -9,8 +9,9 @@ use Illuminate\Database\Seeder;
 /**
  * Suggested starting text for the four Legal & Support pages, written for what
  * Part Synch actually does today: what the app collects (no location, no
- * advertising or analytics SDKs, no in-app payment processing) and what
- * account deletion really removes (AccountController::destroy).
+ * advertising or analytics SDKs; card payments only for seller boosts, taken
+ * by Stripe) and what account deletion really removes
+ * (AccountController::destroy).
  *
  * It only fills a document that is still empty, so it is safe to run again
  * and never overwrites text an admin has edited. Business details the
@@ -53,6 +54,7 @@ class LegalContentSeeder extends Seeder
 <li><strong>Messages:</strong> chat messages and attachments you exchange with other users.</li>
 <li><strong>Reviews and reports:</strong> ratings and reviews you write, and reports you submit about listings or users.</li>
 <li><strong>Support requests:</strong> what you send us through Help &amp; Support.</li>
+<li><strong>Seller promotion payments:</strong> if you pay to boost a listing, the amount, date and the payment reference from our payment processor. We never see or store your full card number.</li>
 </ul>
 <h3>Information collected automatically</h3>
 <ul>
@@ -78,13 +80,14 @@ class LegalContentSeeder extends Seeder
 <h2>3. How information is shared</h2>
 <ul>
 <li><strong>With other users:</strong> your public profile, business details, listings and reviews are visible to other users. When you place an order, the seller receives the details needed to fulfil it, including your name, contact details and delivery address.</li>
-<li><strong>With service providers:</strong> companies that host our servers and send our emails, acting on our instructions.</li>
+<li><strong>With service providers:</strong> companies that host our servers and send our emails, and Stripe, which processes card payments for seller promotions, each acting on our instructions.</li>
 <li><strong>For legal reasons:</strong> when required by law, or to protect the rights and safety of our users and the public.</li>
 </ul>
 <p>We do not sell your personal information.</p>
 
 <h2>4. Payments</h2>
-<p>Part Synch does not process card payments inside the app. Payment for an order is arranged between the buyer and the seller. If we add in-app payments in the future, we will update this policy first.</p>
+<p>Buyers do not pay inside the app: payment for an order is arranged between the buyer and the seller.</p>
+<p>Sellers can pay by card inside the app for optional promotions ("boosts"). These payments are processed by Stripe, Inc. Your card details go directly to Stripe and are handled under <a href="https://stripe.com/privacy">Stripe's privacy policy</a>; we receive only the amount, the date and a payment reference.</p>
 
 <h2>5. How long we keep information</h2>
 <p>We keep your information while your account is active. When you delete your account, we delete or anonymise your personal information as described on our account deletion page. We keep anonymised order records where we need them for accounting, tax or legal reasons.</p>

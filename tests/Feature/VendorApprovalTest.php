@@ -51,6 +51,20 @@ class VendorApprovalTest extends TestCase
             ->assertSee(route('vendor.toggle.approval', $vendor->id), false);
     }
 
+    // Emulator run 2026-11-07: oldest-first put a seller who had just signed
+    // up on page 3 of the pending list.
+    public function test_newest_application_is_listed_first_and_approved_vendors_after(): void
+    {
+        $approved = $this->user(2, 'active');
+        $older = $this->user(2);
+        $newest = $this->user(2);
+
+        $ids = $this->actingAs($this->user(1))->get('/vendor-records')->assertOk()
+            ->viewData('vendors')->pluck('id')->all();
+
+        $this->assertSame([$newest->id, $older->id, $approved->id], $ids);
+    }
+
     public function test_admin_approves_a_vendor_and_the_app_login_lets_them_in(): void
     {
         Mail::fake();

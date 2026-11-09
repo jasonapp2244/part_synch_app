@@ -40,9 +40,15 @@ class DashboardController extends Controller
                     'order_id' => $order->id,
                     'order_number' => $order->order_number,
                     'items_count' => $order->orderItems->count(),
+                    // Units, as the seller's order list counts them.
+                    'units_count' => (int) $order->orderItems->sum('quantity'),
                     'total' => $order->orderItems->sum('total_price'),
                     'status' => $order->order_status,
                     'date' => $order->created_at?->format('d M Y'),
+                    // ISO-8601 in UTC, so the app can show the seller's own
+                    // calendar day: `date` is the UTC day, a day early or late
+                    // for anyone far from UTC. `date` stays for older builds.
+                    'placed_at' => $order->created_at?->toIso8601ZuluString(),
                 ];
             });
 

@@ -161,6 +161,30 @@ class BoostFlowTest extends TestCase
         $this->getJson('/api/admin/boost-packages')->assertUnauthorized();
     }
 
+    // Device run 2026-11-09: deleting the only product of a paid boost left
+    // the boost "active" with nothing in it.
+    public function test_deleting_a_boosted_product_ends_a_boost_left_empty_and_keeps_one_that_is_not(): void
+    {
+        $vendor = $this->user(2);
+        $admin = $this->user(1);
+        [$a, $b, $c] = [$this->product($vendor), $this->product($vendor), $this->product($vendor)];
+
+        $this->requestBoost($vendor, [$a])->assertCreated();
+        $solo = VendorBoost::latest('id')->firstOrFail();
+        $this->approve($admin, $solo)->assertSessionHasNoErrors();
+
+        $this->requestBoost($vendor, [$b, $c])->assertCreated();
+        $pair = VendorBoost::latest('id')->firstOrFail();
+        $this->approve($admin, $pair, ['start_date' => now()->addDays(8)->format('Y-m-d H:i:s')])->assertSessionHasNoErrors();
+
+        $this->actingAs($vendor, 'sanctum')->deleteJson("/api/vendor/delete_product/{$a}")->assertOk();
+        $this->actingAs($vendor, 'sanctum')->deleteJson("/api/vendor/delete_product/{$b}")->assertOk();
+
+        $this->assertFalse((bool) $solo->fresh()->is_active);
+        $this->assertNotSame('active', $solo->fresh()->status);
+        $this->assertTrue((bool) $pair->fresh()->is_active, 'a boost with a product left keeps running');
+    }
+
     public function test_vendor_can_withdraw_a_pending_request_only(): void
     {
         $vendor = $this->user(2);

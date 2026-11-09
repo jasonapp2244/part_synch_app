@@ -55,6 +55,19 @@ class LegalPagesTest extends TestCase
         $this->get('/account/delete')->assertOk()->assertSee('Delete your account in the app');
     }
 
+    // Emulator run 2026-11-07: the template said the app takes no card
+    // payments, while sellers pay for boosts by card through Stripe in the
+    // app. A policy that contradicts the app is a store-review rejection.
+    public function test_seeded_privacy_policy_discloses_stripe_boost_payments(): void
+    {
+        $this->seed(LegalContentSeeder::class);
+
+        $policy = Setting::get('privacy_policy_content');
+        $this->assertStringContainsString('processed by Stripe', $policy);
+        $this->assertStringContainsString('stripe.com/privacy', $policy);
+        $this->assertStringNotContainsString('does not process card payments', $policy);
+    }
+
     public function test_unpublished_documents_return_404_but_support_page_still_shows_contact(): void
     {
         Setting::set('support_email', 'help@example.com', 'legal');

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Vendor;
 
 use App\Models\Stock;
+use App\Models\BoostedProduct;
+use App\Models\VendorBoost;
 use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Support\Str;
@@ -559,7 +561,16 @@ class ProductController extends Controller
             }
             CompanyProductCategoryLinks::where('product_id', $id)->delete();
             Stock::where('product_id', $id)->delete();
+            $boostIds = BoostedProduct::where('product_id', $product->id)->pluck('vendor_boost_id')->unique()->all();
             $product->delete();
+
+            // The boosted_products rows go with the product (FK cascade). A
+            // boost that boosted only this product then showed as "Live" with
+            // nothing in it, although the app had just told the seller that
+            // deleting ends the boost (device run 2026-11-09).
+            if ($boostIds) {
+                VendorBoost::whereIn('id', $boostIds)->whereDoesntHave('boostedProducts')->update(['is_active' => false]);
+            }
 
             return response()->json([
                 'status'  => true,

@@ -142,4 +142,23 @@ class VendorOrderViewTest extends TestCase
 
         $this->assertSame(['#ORD-20261029-1'], $numbers);
     }
+
+    // Emulator run 2026-11-07: the dashboard's recent orders sent only the UTC
+    // day, so a seller five hours ahead saw an order from 04:06 on 7 Nov as
+    // 06 Nov. `placed_at` is the full UTC instant; `date` stays for old builds.
+    public function test_dashboard_recent_orders_carry_the_placed_at_instant(): void
+    {
+        $id = $this->order($this->vendor, '#ORD-20261106-1');
+        DB::table('orders')->where('id', $id)->update(['created_at' => '2026-11-06 23:06:00']);
+
+        $row = collect($this->actingAs($this->vendor)->getJson('/api/vendor/dashboard')->assertOk()->json('data.recent_orders'))
+            ->firstWhere('order_number', '#ORD-20261106-1');
+
+        $this->assertSame('06 Nov 2026', $row['date']);
+        $this->assertSame('2026-11-06T23:06:00Z', $row['placed_at']);
+        // One line of two units: the line count stays, the unit count is new.
+        $this->assertSame(1, $row['items_count']);
+        $this->assertSame(2, $row['units_count']);
+    }
 }
+

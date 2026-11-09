@@ -14,11 +14,13 @@ class VendorController extends Controller
 {
     public function VendorRecords()
     {
-        // Vendors waiting for approval first, so a new application is not
-        // buried on the last page.
+        // Vendors waiting for approval first, newest first within each group,
+        // so a new application is not buried: oldest-first put a seller who
+        // had just signed up on page 3 of the pending list (emulator run
+        // 2026-11-07).
         $vendors = User::where('role_id', 2)
             ->orderByRaw("business_status = 'active'")
-            ->orderBy('id')
+            ->orderByDesc('id')
             ->get();
         $pendingCount = $vendors->where('business_status', '!=', 'active')->count();
 
