@@ -117,6 +117,8 @@ Route::middleware('admin')->group(function () {
     Route::get('/product-records', [ProductController::class, 'ProductRecords'])->name('product.records');
     Route::post('/product/{id}/toggle-status', [ProductController::class, 'toggleStatus'])->name('product.toggle.status');
     Route::delete('/product/{id}', [ProductController::class, 'destroy'])->name('product.destroy');
+    Route::post('/product/{id}/images', [ProductController::class, 'uploadImages'])->whereNumber('id')->name('product.images.store');
+    Route::delete('/product/{id}/images/{imageId}', [ProductController::class, 'destroyImage'])->whereNumber(['id', 'imageId'])->name('product.images.destroy');
 
     // Order Management
     Route::get('/earning-records', [EarningController::class, 'EarningRecords'])->name('earning.records');

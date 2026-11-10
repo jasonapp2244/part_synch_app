@@ -26,6 +26,13 @@
                 </div>
             @endif
 
+            @if($errors->any())
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ $errors->first() }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
             @if(session('error'))
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     {{ session('error') }}
@@ -50,6 +57,7 @@
                             <thead>
                                 <tr>
                                     <th>S.no</th>
+                                    <th>Photo</th>
                                     <th>Product Name</th>
                                     <th>Price</th>
                                     <th>Stock</th>
@@ -63,6 +71,17 @@
                                 @forelse($products as $index => $product)
                                 <tr>
                                     <td>{{ $index + 1 }}</td>
+                                    <td>
+                                        @php($cover = $product->productImages->first())
+                                        <button type="button" class="btn p-0 border-0 bg-transparent position-relative" data-bs-toggle="modal" data-bs-target="#photosProductModal{{ $product->id }}" aria-label="Photos of {{ $product->name }}">
+                                            @if($cover)
+                                                <img src="{{ $cover->url() }}" alt="" width="48" height="48" class="rounded border" style="object-fit: cover;" loading="lazy">
+                                            @else
+                                                <span class="d-inline-flex align-items-center justify-content-center rounded border bg-light text-danger" style="width:48px;height:48px;" title="No photo"><i class="bx bx-image-alt fs-4"></i></span>
+                                            @endif
+                                            <span class="badge rounded-pill {{ $product->productImages->count() ? 'bg-secondary' : 'bg-danger' }} position-absolute top-0 start-100 translate-middle">{{ $product->productImages->count() }}</span>
+                                        </button>
+                                    </td>
                                     <td><span class="fw-bold">{{ $product->name ?? 'N/A' }}</span></td>
                                     <td><span class="fw-bold text-primary">${{ number_format($product->price ?? 0, 2) }}</span></td>
                                     <td>
@@ -96,6 +115,9 @@
                                         <button type="button" class="btn btn-sm btn-inverse-primary" data-bs-toggle="modal" data-bs-target="#viewProductModal{{ $product->id }}">
                                             <i class="bx bx-show me-0"></i>
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-inverse-info" data-bs-toggle="modal" data-bs-target="#photosProductModal{{ $product->id }}" title="Photos" aria-label="Manage photos of {{ $product->name }}">
+                                            <i class="bx bx-images me-0"></i>
+                                        </button>
                                         <button type="button" class="btn btn-sm btn-inverse-danger" data-bs-toggle="modal" data-bs-target="#deleteProductModal{{ $product->id }}">
                                             <i class="bx bx-trash me-0"></i>
                                         </button>
@@ -103,7 +125,7 @@
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">No product records found.</td>
+                                    <td colspan="9" class="text-center text-muted py-4">No product records found.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
@@ -147,6 +169,51 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photos Modal -->
+    <div class="modal fade" id="photosProductModal{{ $product->id }}" tabindex="-1" aria-labelledby="photosProductTitle{{ $product->id }}">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="photosProductTitle{{ $product->id }}">Photos: {{ $product->name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if($product->productImages->isEmpty())
+                        <div class="alert alert-warning py-2">This product has no photo, so the app shows a placeholder. Add at least one.</div>
+                    @else
+                        <div class="row g-3 mb-3">
+                            @foreach($product->productImages as $image)
+                                <div class="col-6 col-md-3">
+                                    <div class="border rounded p-1 text-center h-100">
+                                        <a href="{{ $image->url() }}" target="_blank" rel="noopener">
+                                            <img src="{{ $image->url() }}" alt="Photo {{ $loop->iteration }} of {{ $product->name }}" class="img-fluid rounded" style="aspect-ratio: 4 / 3; object-fit: cover;" loading="lazy">
+                                        </a>
+                                        @if($product->productImages->count() > 1)
+                                            <form action="{{ route('product.images.destroy', [$product->id, $image->id]) }}" method="POST" class="mt-1" onsubmit="return confirm('Remove this photo?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger w-100"><i class="bx bx-trash"></i> Remove</button>
+                                            </form>
+                                        @else
+                                            <small class="text-muted d-block mt-1">Only photo: add another to replace it</small>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                    <form action="{{ route('product.images.store', $product->id) }}" method="POST" enctype="multipart/form-data">
+                        @csrf
+                        <label for="photos{{ $product->id }}" class="form-label fw-bold">Add photos</label>
+                        <input type="file" class="form-control" id="photos{{ $product->id }}" name="photos[]" accept="image/jpeg,image/png,image/webp" multiple required>
+                        <div class="form-text">JPG, PNG or WebP, up to 2 MB each, up to 8 at a time. They appear in the app straight away.</div>
+                        <button type="submit" class="btn btn-primary mt-2"><i class="bx bx-upload"></i> Upload</button>
+                    </form>
                 </div>
             </div>
         </div>
