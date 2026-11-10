@@ -14,7 +14,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 BRANCH="${1:-main}"
-REMOTE="${REMOTE:-origin}"
+# The backend repo is the `part_synch_app` remote. On the live server `origin`
+# points at the private app repo (part_synch_mob_app), so fetching it stops at
+# a GitHub login prompt with the site in maintenance mode (2026-11-11).
+if [ -z "${REMOTE:-}" ]; then
+    if git remote | grep -qx part_synch_app; then REMOTE=part_synch_app; else REMOTE=origin; fi
+fi
 
 say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31mFAILED: %s\033[0m\n' "$*" >&2; exit 1; }

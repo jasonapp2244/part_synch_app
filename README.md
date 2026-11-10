@@ -86,10 +86,19 @@ checkout leaves them alone.
 
 ### Every deploy after that
 
+As root, in the site folder:
+
 ```bash
-./deploy.sh            # main
-./deploy.sh staging    # staging
+bash deploy.sh            # main
+bash deploy.sh staging    # staging
 ```
+
+It fetches from the `part_synch_app` remote (the backend repo) when it exists,
+otherwise `origin`; set `REMOTE=<name>` to override. On the live server
+`origin` is the private app repo and asks for a GitHub login, so don't force
+`REMOTE=origin` there. Run it as root: `.git` is root-owned, so running as the
+site user fails with "dubious ownership"; the script hands `storage/` back to
+the site user itself.
 
 ### Notes
 
